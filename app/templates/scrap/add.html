@@ -1,0 +1,665 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Add Scrap Record') }} - {{ app_setting.app_name }}{% endblock %}
+
+{% block content %}
+
+{% macro photo_picker(category, label, required) %}
+<div class="mb-2">
+
+    <label class="form-label">
+        {{ label }}
+        {% if required %}<span class="text-danger">*</span>{% else %}<span class="text-muted">({{ _('optional') }})</span>{% endif %}
+    </label>
+
+    <p class="text-muted small mb-2">{{ _('Add 1 to 5 photos depending on the condition.') }}</p>
+
+    <div class="scrap-photo-thumbs d-flex flex-wrap" data-category="{{ category }}"></div>
+
+    <div class="d-flex gap-2 flex-wrap mt-1">
+        <button type="button" class="btn btn-outline-primary btn-sm scrap-camera-btn" data-category="{{ category }}">
+            <i class="bi bi-camera"></i>
+            {{ _('Take Photo') }}
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm scrap-gallery-btn" data-category="{{ category }}">
+            <i class="bi bi-images"></i>
+            {{ _('Choose from Gallery') }}
+        </button>
+    </div>
+
+    <div class="text-warning small mt-1" data-category-warning="{{ category }}" style="display:none;"></div>
+
+    <input type="file" accept="image/*" capture="environment" class="d-none scrap-camera-input" data-category="{{ category }}">
+    <input type="file" accept="image/*" multiple class="d-none scrap-gallery-input" data-category="{{ category }}">
+    <input type="file" name="photos_{{ category }}" class="d-none scrap-real-input" data-category="{{ category }}" multiple>
+
+</div>
+{% endmacro %}
+
+<style>
+.scrap-timeline-card {
+    position: sticky;
+    top: 80px;
+}
+
+.scrap-timeline {
+    position: relative;
+}
+
+.scrap-timeline-item {
+    display: flex;
+    gap: 12px;
+    padding-bottom: 28px;
+    position: relative;
+}
+
+.scrap-timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.scrap-timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 32px;
+    bottom: -4px;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.scrap-timeline-item.completed:not(:last-child)::before {
+    background: #198754;
+}
+
+.scrap-timeline-marker {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    background: #e9ecef;
+    color: #6c757d;
+    border: 2px solid #dee2e6;
+    z-index: 1;
+}
+
+.scrap-timeline-item.active .scrap-timeline-marker {
+    background: #0d6efd;
+    color: #fff;
+    border-color: #0d6efd;
+}
+
+.scrap-timeline-item.completed .scrap-timeline-marker {
+    background: #198754;
+    color: #fff;
+    border-color: #198754;
+}
+
+.scrap-timeline-item.active .scrap-timeline-content .fw-semibold {
+    color: #0d6efd;
+}
+
+[data-bs-theme="dark"] .scrap-timeline-marker {
+    background: #343a40;
+    color: #adb5bd;
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .scrap-timeline-item:not(:last-child)::before {
+    background: #495057;
+}
+
+.scrap-step {
+    display: none;
+}
+
+.scrap-step.is-active {
+    display: block;
+}
+
+.timbangan-row .input-group-text {
+    min-width: 36px;
+    justify-content: center;
+}
+</style>
+
+<div class="container-fluid mt-4">
+
+    <div class="page-header-card">
+
+        <div class="page-header-row">
+
+            <div class="page-header-left">
+
+                <div class="page-header-icon">
+                    <i class="bi bi-plus-circle"></i>
+                </div>
+
+                <div>
+                    <h4 class="page-header-title">
+                        {{ _('Add Scrap Record') }}
+                    </h4>
+                </div>
+
+            </div>
+
+            <div class="page-header-actions">
+
+                <a href="{{ url_for('main.scrap_list') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i>
+                    {{ _('Back') }}
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row g-3">
+
+        <div class="col-lg-8">
+
+            <div class="card">
+
+                <div class="card-body">
+
+                    <form id="scrapAddForm" method="POST" enctype="multipart/form-data">
+
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                        <!-- STEP 1: FOTO BEFORE -->
+                        <div class="scrap-step is-active" data-step="1">
+
+                            <h5 class="mb-1">{{ _('Step 1: Before Photo') }}</h5>
+                            <p class="text-muted small mb-3">
+                                {{ _('Upload a photo of the initial condition before the scrap weighing process starts.') }}
+                            </p>
+
+                            {{ photo_picker('before', _('Before Photo(s)'), true) }}
+
+                            <div class="text-danger small scrap-step-error" data-step-error="1" style="display:none;"></div>
+
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-primary scrap-next-btn" data-next="2">
+                                    {{ _('Next') }}
+                                    <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <!-- STEP 2: JENIS SCRAP & TANGGAL -->
+                        <div class="scrap-step" data-step="2">
+
+                            <h5 class="mb-1">{{ _('Step 2: Scrap Type & Date') }}</h5>
+                            <p class="text-muted small mb-3">
+                                {{ _('Select the scrap type and fill in the date of this process.') }}
+                            </p>
+
+                            <div class="mb-3">
+                                <label class="form-label">{{ _('Scrap Type') }}</label>
+                                <select name="scrap_type" class="form-select">
+                                    <option value="besi_biasa">{{ _('Besi Biasa') }}</option>
+                                    <option value="besi_lgs">{{ _('Besi Baja Ringan / LGS') }}</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label">{{ _('Date') }} <span class="text-danger">*</span></label>
+                                <input
+                                    type="date"
+                                    id="recordedDateInput"
+                                    name="recorded_date"
+                                    class="form-control"
+                                >
+                            </div>
+
+                            <div class="text-danger small scrap-step-error" data-step-error="2" style="display:none;"></div>
+
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-outline-secondary scrap-back-btn" data-back="1">
+                                    <i class="bi bi-arrow-left"></i>
+                                    {{ _('Back') }}
+                                </button>
+                                <button type="button" class="btn btn-primary scrap-next-btn" data-next="3">
+                                    {{ _('Next') }}
+                                    <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <!-- STEP 3: PROSES TIMBANG -->
+                        <div class="scrap-step" data-step="3">
+
+                            <h5 class="mb-1">{{ _('Step 3: Weighing Process') }}</h5>
+                            <p class="text-muted small mb-3">
+                                {{ _('Scrap cannot be weighed all at once, so input each weighing result one by one below.') }}
+                            </p>
+
+                            <div class="mb-3" style="max-width: 160px;">
+                                <label class="form-label">{{ _('Unit') }}</label>
+                                <select name="unit" id="scrapUnitSelect" class="form-select">
+                                    <option value="kg">kg</option>
+                                    <option value="ton">ton</option>
+                                </select>
+                            </div>
+
+                            <label class="form-label">{{ _('Weighing Entries') }} <span class="text-danger">*</span></label>
+
+                            <div id="timbanganList">
+                                <div class="input-group mb-2 timbangan-row">
+                                    <span class="input-group-text">1</span>
+                                    <input type="number" step="0.01" min="0.01" name="timbangan[]" class="form-control timbangan-input" placeholder="{{ _('Example: 17.10') }}">
+                                    <button type="button" class="btn btn-outline-danger timbangan-remove" style="display:none;">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button type="button" id="addTimbanganBtn" class="btn btn-sm btn-outline-primary mb-3">
+                                <i class="bi bi-plus-lg"></i>
+                                {{ _('Add Weighing Entry') }}
+                            </button>
+
+                            <div class="fw-semibold mb-3">
+                                {{ _('Total') }}:
+                                <span id="timbanganTotal">0.00</span>
+                                <span id="timbanganUnitLabel">kg</span>
+                            </div>
+
+                            {{ photo_picker('timbang', _('Weighing Process Photo(s)'), false) }}
+
+                            <div class="text-danger small scrap-step-error" data-step-error="3" style="display:none;"></div>
+
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-outline-secondary scrap-back-btn" data-back="2">
+                                    <i class="bi bi-arrow-left"></i>
+                                    {{ _('Back') }}
+                                </button>
+                                <button type="button" class="btn btn-primary scrap-next-btn" data-next="4">
+                                    {{ _('Next') }}
+                                    <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <!-- STEP 4: CATATAN & FOTO AFTER -->
+                        <div class="scrap-step" data-step="4">
+
+                            <h5 class="mb-1">{{ _('Step 4: Notes & After Photo') }}</h5>
+                            <p class="text-muted small mb-3">
+                                {{ _('Add optional notes, upload the after photo, and finish the process.') }}
+                            </p>
+
+                            <div class="mb-3">
+                                <label class="form-label">{{ _('Notes') }} <span class="text-muted">({{ _('optional') }})</span></label>
+                                <textarea
+                                    name="notes"
+                                    class="form-control"
+                                    rows="3"
+                                    placeholder="{{ _('Optional notes...') }}"
+                                ></textarea>
+                            </div>
+
+                            {{ photo_picker('after', _('After Photo(s)'), true) }}
+
+                            <div class="text-danger small scrap-step-error" data-step-error="4" style="display:none;"></div>
+
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-outline-secondary scrap-back-btn" data-back="3">
+                                    <i class="bi bi-arrow-left"></i>
+                                    {{ _('Back') }}
+                                </button>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-check-lg"></i>
+                                    {{ _('Finish') }}
+                                </button>
+                            </div>
+
+                        </div>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-4">
+
+            <div class="card shadow-sm scrap-timeline-card">
+
+                <div class="card-body">
+
+                    <h6 class="mb-3">{{ _('Process Timeline') }}</h6>
+
+                    <div class="scrap-timeline">
+
+                        <div class="scrap-timeline-item active" data-step="1">
+                            <div class="scrap-timeline-marker">1</div>
+                            <div class="scrap-timeline-content">
+                                <div class="fw-semibold">{{ _('Before Photo') }}</div>
+                                <div class="text-muted small">{{ _('Upload initial condition photo') }}</div>
+                            </div>
+                        </div>
+
+                        <div class="scrap-timeline-item" data-step="2">
+                            <div class="scrap-timeline-marker">2</div>
+                            <div class="scrap-timeline-content">
+                                <div class="fw-semibold">{{ _('Scrap Type & Date') }}</div>
+                                <div class="text-muted small">{{ _('Fill in scrap type and date') }}</div>
+                            </div>
+                        </div>
+
+                        <div class="scrap-timeline-item" data-step="3">
+                            <div class="scrap-timeline-marker">3</div>
+                            <div class="scrap-timeline-content">
+                                <div class="fw-semibold">{{ _('Weighing Process') }}</div>
+                                <div class="text-muted small">{{ _('Input weighing entries one by one') }}</div>
+                            </div>
+                        </div>
+
+                        <div class="scrap-timeline-item" data-step="4">
+                            <div class="scrap-timeline-marker">4</div>
+                            <div class="scrap-timeline-content">
+                                <div class="fw-semibold">{{ _('Notes & After Photo') }}</div>
+                                <div class="text-muted small">{{ _('Add notes and finish the process') }}</div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+(function () {
+
+    var currentStep = 1;
+
+    function showStep(step) {
+
+        document.querySelectorAll(".scrap-step").forEach(function (el) {
+            el.classList.toggle("is-active", parseInt(el.dataset.step, 10) === step);
+        });
+
+        document.querySelectorAll(".scrap-timeline-item").forEach(function (el) {
+
+            var s = parseInt(el.dataset.step, 10);
+            var marker = el.querySelector(".scrap-timeline-marker");
+
+            el.classList.remove("active", "completed");
+
+            if (s < step) {
+                el.classList.add("completed");
+                marker.innerHTML = '<i class="bi bi-check-lg"></i>';
+            } else {
+                marker.textContent = s;
+                if (s === step) {
+                    el.classList.add("active");
+                }
+            }
+
+        });
+
+        currentStep = step;
+    }
+
+    function showStepError(step, message) {
+        var el = document.querySelector('.scrap-step-error[data-step-error="' + step + '"]');
+        el.textContent = message;
+        el.style.display = message ? "" : "none";
+    }
+
+    function getTimbanganValues() {
+        return Array.from(document.querySelectorAll(".timbangan-input"))
+            .map(function (el) { return parseFloat(el.value); })
+            .filter(function (v) { return !isNaN(v) && v > 0; });
+    }
+
+    function updateTimbanganTotal() {
+        var total = getTimbanganValues().reduce(function (a, b) { return a + b; }, 0);
+        document.getElementById("timbanganTotal").textContent = total.toFixed(2);
+    }
+
+    function renumberTimbangan() {
+        var rows = document.querySelectorAll("#timbanganList .timbangan-row");
+        rows.forEach(function (row, idx) {
+            row.querySelector(".input-group-text").textContent = idx + 1;
+            row.querySelector(".timbangan-remove").style.display = rows.length > 1 ? "" : "none";
+        });
+    }
+
+    document.getElementById("addTimbanganBtn").addEventListener("click", function () {
+
+        var list = document.getElementById("timbanganList");
+        var row = document.createElement("div");
+        row.className = "input-group mb-2 timbangan-row";
+        row.innerHTML =
+            '<span class="input-group-text"></span>' +
+            '<input type="number" step="0.01" min="0.01" name="timbangan[]" class="form-control timbangan-input" placeholder="{{ _('Example: 17.10') }}">' +
+            '<button type="button" class="btn btn-outline-danger timbangan-remove"><i class="bi bi-x"></i></button>';
+
+        list.appendChild(row);
+        renumberTimbangan();
+        updateTimbanganTotal();
+    });
+
+    document.getElementById("timbanganList").addEventListener("click", function (e) {
+
+        var btn = e.target.closest(".timbangan-remove");
+
+        if (!btn) {
+            return;
+        }
+
+        btn.closest(".timbangan-row").remove();
+        renumberTimbangan();
+        updateTimbanganTotal();
+    });
+
+    document.getElementById("timbanganList").addEventListener("input", function (e) {
+        if (e.target.classList.contains("timbangan-input")) {
+            updateTimbanganTotal();
+        }
+    });
+
+    document.getElementById("scrapUnitSelect").addEventListener("change", function () {
+        document.getElementById("timbanganUnitLabel").textContent = this.value;
+    });
+
+    var MAX_PHOTOS_PER_CATEGORY = 5;
+
+    var scrapPhotoState = {};
+
+    document.querySelectorAll(".scrap-real-input").forEach(function (input) {
+        scrapPhotoState[input.dataset.category] = [];
+    });
+
+    function syncRealInput(category) {
+
+        var dt = new DataTransfer();
+
+        scrapPhotoState[category].forEach(function (file) {
+            dt.items.add(file);
+        });
+
+        document.querySelector('.scrap-real-input[data-category="' + category + '"]').files = dt.files;
+    }
+
+    function showPhotoWarning(category, message) {
+        var el = document.querySelector('[data-category-warning="' + category + '"]');
+        el.textContent = message;
+        el.style.display = message ? "" : "none";
+    }
+
+    function renderPhotoThumbs(category) {
+
+        var container = document.querySelector('.scrap-photo-thumbs[data-category="' + category + '"]');
+        container.innerHTML = "";
+
+        scrapPhotoState[category].forEach(function (file, idx) {
+
+            var url = URL.createObjectURL(file);
+
+            var wrap = document.createElement("div");
+            wrap.className = "position-relative me-2 mb-2";
+            wrap.style.width = "70px";
+            wrap.innerHTML =
+                '<img src="' + url + '" style="width:70px;height:70px;object-fit:cover;border-radius:6px;">' +
+                '<button type="button" class="btn btn-sm btn-danger scrap-photo-remove" ' +
+                'style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;padding:0;border-radius:50%;line-height:1;" ' +
+                'data-category="' + category + '" data-index="' + idx + '">' +
+                '<i class="bi bi-x"></i></button>';
+
+            container.appendChild(wrap);
+        });
+
+        syncRealInput(category);
+    }
+
+    function addPhotosToCategory(category, fileList) {
+
+        var files = Array.from(fileList);
+        var remaining = MAX_PHOTOS_PER_CATEGORY - scrapPhotoState[category].length;
+
+        if (files.length > remaining) {
+            files = files.slice(0, Math.max(remaining, 0));
+            showPhotoWarning(category, "{{ _('Maximum 5 photos per category.') }}");
+        } else {
+            showPhotoWarning(category, "");
+        }
+
+        scrapPhotoState[category] = scrapPhotoState[category].concat(files);
+        renderPhotoThumbs(category);
+    }
+
+    document.querySelectorAll(".scrap-camera-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            document.querySelector('.scrap-camera-input[data-category="' + this.dataset.category + '"]').click();
+        });
+    });
+
+    document.querySelectorAll(".scrap-gallery-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            document.querySelector('.scrap-gallery-input[data-category="' + this.dataset.category + '"]').click();
+        });
+    });
+
+    document.querySelectorAll(".scrap-camera-input, .scrap-gallery-input").forEach(function (input) {
+        input.addEventListener("change", function () {
+            if (this.files.length) {
+                addPhotosToCategory(this.dataset.category, this.files);
+            }
+            this.value = "";
+        });
+    });
+
+    document.addEventListener("click", function (e) {
+
+        var btn = e.target.closest(".scrap-photo-remove");
+
+        if (!btn) {
+            return;
+        }
+
+        var category = btn.dataset.category;
+        var idx = parseInt(btn.dataset.index, 10);
+
+        scrapPhotoState[category].splice(idx, 1);
+        renderPhotoThumbs(category);
+    });
+
+    function validateStep(step) {
+
+        showStepError(step, "");
+
+        if (step === 1) {
+
+            if (scrapPhotoState.before.length === 0) {
+                showStepError(1, "{{ _('Before photo is required.') }}");
+                return false;
+            }
+
+        } else if (step === 2) {
+
+            var date = document.getElementById("recordedDateInput").value;
+
+            if (!date) {
+                showStepError(2, "{{ _('Date is required.') }}");
+                return false;
+            }
+
+        } else if (step === 3) {
+
+            if (getTimbanganValues().length === 0) {
+                showStepError(3, "{{ _('At least one weighing entry is required.') }}");
+                return false;
+            }
+
+        } else if (step === 4) {
+
+            if (scrapPhotoState.after.length === 0) {
+                showStepError(4, "{{ _('After photo is required.') }}");
+                return false;
+            }
+
+        }
+
+        return true;
+    }
+
+    document.querySelectorAll(".scrap-next-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            if (validateStep(currentStep)) {
+                showStep(parseInt(this.dataset.next, 10));
+            }
+        });
+    });
+
+    document.querySelectorAll(".scrap-back-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            showStep(parseInt(this.dataset.back, 10));
+        });
+    });
+
+    document.getElementById("scrapAddForm").addEventListener("submit", function (e) {
+
+        for (var s = 1; s <= 4; s++) {
+            if (!validateStep(s)) {
+                e.preventDefault();
+                showStep(s);
+                return;
+            }
+        }
+
+    });
+
+    showStep(1);
+
+})();
+</script>
+
+{% endblock %}

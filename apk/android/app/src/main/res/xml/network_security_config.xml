@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Server produksi diakses HTTP biasa (bukan HTTPS) saat APK
+         lagi di jaringan kantor - cleartext cuma diizinkan untuk IP
+         spesifik ini, bukan untuk domain lain. Akses lewat Funnel
+         publik tetap HTTPS seperti biasa, tidak perlu masuk di sini. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.1.10</domain>
+        <!-- 10.0.2.2 = alias Android Emulator ke localhost PC dev,
+             dipakai cuma buat testing, aman ditinggal (tidak pernah
+             ada di HP fisik asli). -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

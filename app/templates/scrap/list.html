@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Scrap') }} - {{ app_setting.app_name }}{% endblock %}
+
+{% block content %}
+
+<style>
+.scrap-record-thumb,
+.scrap-record-thumb-empty {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+
+.scrap-record-thumb {
+    cursor: zoom-in;
+}
+
+.scrap-record-thumb-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bs-tertiary-bg, #eef0f2);
+    color: var(--bs-secondary-color, #8a94a6);
+    font-size: 1rem;
+}
+
+.photo-lightbox-content {
+    position: relative;
+    overflow: hidden;
+    cursor: zoom-out;
+    background-color: #000;
+}
+
+.photo-lightbox-content::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #0a4fb0 0%, #0d6efd 35%, #6ea8fe 50%, #0d6efd 65%, #0a4fb0 100%);
+    z-index: 1;
+}
+
+[data-bs-theme="dark"] .photo-lightbox-content::before {
+    background: linear-gradient(90deg, #1e40af 0%, #2563eb 35%, #60a5fa 50%, #2563eb 65%, #1e40af 100%);
+}
+
+.photo-lightbox-image {
+    display: block;
+    width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+}
+
+.photo-lightbox-badge {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+.photo-lightbox-backdrop {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+</style>
+
+{% macro record_thumbs(item) %}
+<div class="d-flex gap-1">
+
+    {% for label, photo in [(_('Before'), item.thumb_before), (_('Weighing'), item.thumb_timbang), (_('After'), item.thumb_after)] %}
+
+    {% if photo %}
+    <img
+        src="{{ url_for('static', filename='uploads/scrap/' ~ photo.filename) }}"
+        alt="{{ label }}"
+        loading="lazy"
+        class="scrap-record-thumb"
+        data-bs-toggle="modal"
+        data-bs-target="#scrapListPhotoModal"
+        data-photo-url="{{ url_for('static', filename='uploads/scrap/' ~ photo.filename) }}"
+        data-photo-label="{{ label }}"
+    >
+    {% else %}
+    <div class="scrap-record-thumb-empty" title="{{ label }}">
+        <i class="bi bi-image"></i>
+    </div>
+    {% endif %}
+
+    {% endfor %}
+
+</div>
+{% endmacro %}
+
+<div class="container-fluid">
+
+    <div class="page-header-card">
+
+        <div class="page-header-row">
+
+            <div class="page-header-left">
+
+                <div class="page-header-icon">
+                    <i class="bi bi-recycle"></i>
+                </div>
+
+                <div>
+
+                    <h2 class="page-header-title">
+                        {{ _('Scrap') }}
+                    </h2>
+
+                    <p class="page-header-subtitle mb-0">
+                        {{ _('Record periodic scrap steel data (regular / light-gauge steel - LGS)') }}
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div class="page-header-actions">
+
+                <a
+                    href="{{ url_for('main.scrap_photos') }}"
+                    class="btn btn-outline-secondary"
+                >
+                    <i class="bi bi-images"></i>
+                    {{ _('Documentation') }}
+                </a>
+
+                <a
+                    href="{{ url_for('main.add_scrap') }}"
+                    class="btn btn-primary"
+                >
+                    <i class="bi bi-plus-lg"></i>
+                    {{ _('Add Scrap Record') }}
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+
+        {% if messages %}
+
+            {% for category, message in messages %}
+
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                </div>
+
+            {% endfor %}
+
+        {% endif %}
+
+    {% endwith %}
+
+
+    <div class="row g-2 mb-3">
+
+        {% for key, data in totals_by_type.items() %}
+
+        <div class="col-6">
+
+            <div class="card shadow-sm h-100">
+
+                <div class="card-body">
+
+                    <div class="text-muted small text-uppercase mb-1">
+                        {{ _(data.label) }}
+                    </div>
+
+                    <div class="fs-4 fw-bold">
+                        {{ "%.2f"|format(data.kg) }} kg
+                        {% if data.ton %}
+                        &nbsp;+&nbsp;{{ "%.2f"|format(data.ton) }} ton
+                        {% endif %}
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+
+    <div class="card shadow-sm overflow-hidden">
+
+        <div class="card-header-accent">
+
+            <div class="card-header-accent-left">
+
+                <div class="card-header-accent-icon">
+                    <i class="bi bi-list-ul"></i>
+                </div>
+
+                <div>
+                    <div class="card-header-accent-title">
+                        {{ _('Scrap Records') }}
+                    </div>
+
+                    <div class="card-header-accent-subtitle">
+                        {{ items|length }} {{ _('entries found') }}
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card-body">
+
+            <form method="GET" class="d-flex flex-wrap justify-content-sm-end align-items-end gap-3 mb-3">
+
+                <div>
+                    <label class="form-label small mb-1">{{ _('From') }}</label>
+                    <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+                </div>
+
+                <div>
+                    <label class="form-label small mb-1">{{ _('To') }}</label>
+                    <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+                </div>
+
+                <button type="submit" class="btn btn-sm btn-primary">
+                    {{ _('Filter') }}
+                </button>
+
+                <a href="{{ url_for('main.scrap_list') }}" class="btn btn-sm btn-outline-secondary">
+                    {{ _('Reset') }}
+                </a>
+
+            </form>
+
+            <!-- MOBILE: kartu per catatan scrap - tanggal, jenis,
+                 jumlah, catatan, dan tombol Edit/Delete semua dalam
+                 satu pandangan, tidak perlu scroll horizontal. -->
+            <div class="d-lg-none">
+
+                {% for item in items %}
+
+                <div class="border rounded-3 p-3 mb-2">
+
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div class="fw-semibold">{{ item.recorded_date.strftime('%d-%m-%Y') }}</div>
+                        {% if item.scrap_type == 'besi_lgs' %}
+                        <span class="badge bg-info text-dark">{{ _(item.scrap_type_label()) }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ _(item.scrap_type_label()) }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-1">{{ "%.2f"|format(item.quantity) }} {{ item.unit }}</div>
+
+                    {% if item.notes %}
+                    <div class="text-muted small mt-1" style="white-space: pre-line;">{{ item.notes }}</div>
+                    {% endif %}
+
+                    <div class="mt-2">
+                        {{ record_thumbs(item) }}
+                    </div>
+
+                    <div class="d-flex gap-2 mt-2">
+
+                        <a
+                            href="{{ url_for('main.edit_scrap', record_id=item.id) }}"
+                            class="btn btn-sm btn-warning"
+                        >
+                            {{ _('Edit') }}
+                        </a>
+
+                        <form
+                            method="POST"
+                            action="{{ url_for('main.delete_scrap', record_id=item.id) }}"
+                            onsubmit="return confirm('{{ _('Delete this scrap record?') }}');"
+                        >
+
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                {{ _('Delete') }}
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </div>
+
+                {% else %}
+
+                <div class="text-center text-muted py-3">
+                    {{ _('No scrap records yet.') }}
+                </div>
+
+                {% endfor %}
+
+            </div>
+
+            <!-- DESKTOP/TABLET: tabel seperti biasa. -->
+            <div class="table-responsive d-none d-lg-block">
+
+                <table class="table table-hover">
+
+                    <thead>
+
+                        <tr>
+                            <th>{{ _('No.') }}</th>
+                            <th>{{ _('Photos') }}</th>
+                            <th>{{ _('Date') }}</th>
+                            <th>{{ _('Type') }}</th>
+                            <th>{{ _('Quantity') }}</th>
+                            <th>{{ _('Notes') }}</th>
+                            <th>{{ _('Actions') }}</th>
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                        {% for item in items %}
+
+                        <tr>
+
+                            <td>{{ loop.index }}</td>
+
+                            <td>{{ record_thumbs(item) }}</td>
+
+                            <td>{{ item.recorded_date.strftime('%d-%m-%Y') }}</td>
+
+                            <td>
+                                {% if item.scrap_type == 'besi_lgs' %}
+                                <span class="badge bg-info text-dark">{{ _(item.scrap_type_label()) }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ _(item.scrap_type_label()) }}</span>
+                                {% endif %}
+                            </td>
+
+                            <td>{{ "%.2f"|format(item.quantity) }} {{ item.unit }}</td>
+
+                            <td>{{ item.notes or "-" }}</td>
+
+                            <td>
+
+                                <a
+                                    href="{{ url_for('main.edit_scrap', record_id=item.id) }}"
+                                    class="btn btn-sm btn-warning"
+                                >
+                                    {{ _('Edit') }}
+                                </a>
+
+                                <form
+                                    method="POST"
+                                    action="{{ url_for('main.delete_scrap', record_id=item.id) }}"
+                                    style="display:inline;"
+                                    onsubmit="return confirm('{{ _('Delete this scrap record?') }}');"
+                                >
+
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        {{ _('Delete') }}
+                                    </button>
+
+                                </form>
+
+                            </td>
+
+                        </tr>
+
+                        {% else %}
+
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">
+                                {{ _('No scrap records yet.') }}
+                            </td>
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- MODAL ZOOM FOTO (dipakai bareng semua thumbnail) - tanpa
+         header/tombol close, klik di mana saja di dalam modal
+         (termasuk fotonya) langsung menutup, foto mepet penuh ke
+         tepi modal, labelnya jadi badge yang ditumpuk di atas foto. -->
+    <div class="modal fade" id="scrapListPhotoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content photo-lightbox-content" data-bs-dismiss="modal">
+                <img id="scrapListPhotoModalImage" src="" alt="" class="photo-lightbox-image">
+                <span id="scrapListPhotoModalLabel" class="badge rounded-pill text-bg-primary px-3 py-2 fs-6 photo-lightbox-badge"></span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    "use strict";
+    var photoModal = document.getElementById("scrapListPhotoModal");
+    if (!photoModal) { return; }
+
+    photoModal.addEventListener("show.bs.modal", function (event) {
+        var trigger = event.relatedTarget;
+        if (!trigger) { return; }
+        photoModal.querySelector("#scrapListPhotoModalImage").src = trigger.getAttribute("data-photo-url");
+        photoModal.querySelector("#scrapListPhotoModalLabel").textContent = trigger.getAttribute("data-photo-label") || "";
+    });
+
+    photoModal.addEventListener("shown.bs.modal", function () {
+        var backdrops = document.querySelectorAll(".modal-backdrop");
+        var lastBackdrop = backdrops[backdrops.length - 1];
+        if (lastBackdrop) {
+            lastBackdrop.classList.add("photo-lightbox-backdrop");
+        }
+    });
+})();
+</script>
+
+{% endblock %}

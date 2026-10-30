@@ -1,0 +1,386 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AIT HRGA</title>
+    <style>
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #0b1220;
+        color: #cbd5e1;
+        font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      #status-screen {
+        text-align: center;
+      }
+      #brand-logo {
+        width: 96px;
+        height: 96px;
+        object-fit: contain;
+        animation: brandPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes brandPulse {
+        0%, 100% {
+          transform: scale(1);
+          filter:
+            drop-shadow(0 0 10px rgba(234, 179, 8, 0.55))
+            drop-shadow(0 0 22px rgba(220, 38, 38, 0.35));
+        }
+        50% {
+          transform: scale(1.08);
+          filter:
+            drop-shadow(0 0 18px rgba(234, 179, 8, 0.8))
+            drop-shadow(0 0 34px rgba(220, 38, 38, 0.6));
+        }
+      }
+      #status-text {
+        margin: 20px 0 14px;
+        font-size: 14px;
+        color: #94a3b8;
+      }
+      .wave {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+      }
+      .wave span {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #2563eb;
+        animation: waveBounce 1.1s ease-in-out infinite;
+      }
+      .wave span:nth-child(2) { animation-delay: 0.12s; }
+      .wave span:nth-child(3) { animation-delay: 0.24s; }
+      .wave span:nth-child(4) { animation-delay: 0.36s; }
+      .wave span:nth-child(5) { animation-delay: 0.48s; }
+      @keyframes waveBounce {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+        30% { transform: translateY(-10px); opacity: 1; }
+      }
+      #update-card {
+        display: none;
+        max-width: 360px;
+        background: #121a2b;
+        border: 1px solid #1f2937;
+        border-radius: 14px;
+        padding: 24px;
+        text-align: center;
+      }
+      #update-card h2 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+      #update-card p {
+        margin: 0 0 16px;
+        font-size: 14px;
+        color: #94a3b8;
+        white-space: pre-line;
+      }
+      #update-card button.btn-update,
+      #update-card button.btn-skip {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 12px;
+        border-radius: 8px;
+        border: none;
+        font-size: 14px;
+        margin-bottom: 8px;
+        cursor: pointer;
+      }
+      #update-card button.btn-update {
+        background: #2563eb;
+        color: #fff;
+        font-weight: 600;
+      }
+      #update-card button.btn-update:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      #update-card button.btn-skip {
+        background: transparent;
+        color: #94a3b8;
+      }
+      #download-progress-track {
+        display: none;
+        height: 8px;
+        border-radius: 4px;
+        background: #1f2937;
+        overflow: hidden;
+        margin-bottom: 8px;
+      }
+      #download-progress-bar {
+        height: 100%;
+        width: 0%;
+        background: #2563eb;
+        transition: width 0.15s ease-out;
+      }
+      #download-progress-label {
+        display: none;
+        font-size: 12px;
+        color: #64748b;
+        margin: -4px 0 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="status-screen">
+      <img id="brand-logo" src="brand-logo.png" alt="" />
+      <div id="status-text">Menghubungkan...</div>
+      <div class="wave"><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+
+    <div id="update-card">
+      <h2>Update tersedia</h2>
+      <p id="update-notes"></p>
+      <div id="download-progress-track"><div id="download-progress-bar"></div></div>
+      <p id="download-progress-label">Mengunduh... 0%</p>
+      <button id="update-download" class="btn-update" onclick="downloadAndInstall()">Download &amp; Pasang</button>
+      <button class="btn-skip" onclick="skipUpdate()">Lewati, lanjut pakai versi sekarang</button>
+    </div>
+
+    <script>
+      // Versi native app ini sendiri (samakan dengan versionCode di
+      // android/app/build.gradle tiap kali build APK baru).
+      var CURRENT_VERSION_CODE = 7;
+
+      // Cek rilis terbaru langsung dari GitHub Releases (repo publik,
+      // gratis, tanpa perlu server/database sendiri). Konvensi rilis:
+      // tag = "v<versionCode>" (contoh: "v2", "v3", ...), dengan 1 file
+      // .apk dilampirkan sebagai release asset.
+      var GITHUB_RELEASES_API =
+        "https://api.github.com/repos/r0corp/Internal-Asset-Tracker-demo/releases/latest";
+
+      // Dicoba dulu alamat LAN kantor (cepat, cuma jalan kalau HP
+      // terhubung ke WiFi kantor yang satu jaringan dengan server).
+      // Kalau dalam waktu singkat tidak terjangkau (lagi di luar
+      // kantor / pakai data seluler), otomatis dialihkan ke alamat
+      // publik lewat Tailscale Funnel di server yang sama.
+      var LAN_URL = "http://192.168.1.10:8000/";
+      var PUBLIC_URL = "https://asset-tracker.example.ts.net:8443/";
+      var TIMEOUT_MS = 1200;
+
+      // Cek update ke GitHub tidak perlu dilakukan di SETIAP app
+      // dibuka - itu 1 network round-trip penuh yang bikin buka app
+      // kerasa lambat padahal rilis baru paling cuma muncul sesekali.
+      // Cukup dicek ulang tiap 6 jam (disimpan di localStorage) - sisa
+      // waktu lainnya langsung lanjut ke app tanpa menunggu GitHub.
+      var UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+      var resolvedBaseUrl = null;
+      var pendingApkUrl = null;
+
+      function shouldCheckForUpdate() {
+        try {
+          var last = parseInt(localStorage.getItem("lastUpdateCheckAt") || "0", 10);
+          return (Date.now() - last) > UPDATE_CHECK_INTERVAL_MS;
+        } catch (e) {
+          return true;
+        }
+      }
+
+      function markUpdateChecked() {
+        try {
+          localStorage.setItem("lastUpdateCheckAt", String(Date.now()));
+        } catch (e) {}
+      }
+
+      // Pakai AbortController (bukan cuma lomba Promise/setTimeout) -
+      // supaya koneksi yang lambat (mis. mencoba IP LAN yang "kayak
+      // ada di jaringan yang sama" tapi sebenarnya tidak terjangkau)
+      // BENAR-BENAR dibatalkan tepat waktu, bukan cuma berhenti
+      // ditunggu sementara percobaan konkesinya tetap jalan di balik
+      // layar (yang bisa bikin timer JS ikut telat kepanggil).
+      function fetchWithTimeout(url, options, ms) {
+
+        var controller = new AbortController();
+
+        var timer = setTimeout(function () {
+          controller.abort();
+        }, ms);
+
+        var opts = Object.assign({}, options, { signal: controller.signal });
+
+        return fetch(url, opts).finally(function () {
+          clearTimeout(timer);
+        });
+      }
+
+      function goToApp() {
+        var statusText = document.getElementById("status-text");
+        if (statusText) { statusText.textContent = "Membuka aplikasi..."; }
+        window.location.replace(resolvedBaseUrl);
+      }
+
+      function skipUpdate() {
+        document.getElementById("update-card").style.display = "none";
+        document.getElementById("status-screen").style.display = "block";
+        goToApp();
+      }
+
+      // Download langsung ke penyimpanan app (native, lewat
+      // @capacitor/filesystem - bukan fetch() biasa, karena file
+      // release GitHub tidak kasih header CORS) dengan progress bar,
+      // lalu langsung buka installer APK Android (plugin custom
+      // "ApkInstaller", lihat MainActivity.java/ApkInstaller.java) -
+      // tidak ada pengalihan ke browser luar sama sekali.
+      function downloadAndInstall() {
+
+        var Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+        var ApkInstaller = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ApkInstaller;
+        var CapacitorHttp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
+
+        if (!Filesystem || !ApkInstaller || !pendingApkUrl) {
+          // Fallback kalau plugin native tidak tersedia (mis. dibuka
+          // di browser biasa saat development) - buka link apa adanya.
+          window.open(pendingApkUrl, "_system");
+          return;
+        }
+
+        var downloadButton = document.getElementById("update-download");
+        var progressTrack = document.getElementById("download-progress-track");
+        var progressBar = document.getElementById("download-progress-bar");
+        var progressLabel = document.getElementById("download-progress-label");
+
+        downloadButton.disabled = true;
+        downloadButton.textContent = "Mengunduh...";
+        progressTrack.style.display = "block";
+        progressLabel.style.display = "block";
+
+        Filesystem.addListener("progress", function (status) {
+
+          if (!status.contentLength) { return; }
+
+          var pct = Math.round((status.bytes / status.contentLength) * 100);
+          progressBar.style.width = pct + "%";
+          progressLabel.textContent = "Mengunduh... " + pct + "%";
+        });
+
+        // GitHub Release asset URL selalu redirect (302) ke
+        // release-assets.githubusercontent.com - Filesystem.downloadFile()
+        // bawaan Capacitor ternyata menulis data rusak kalau harus ikut
+        // redirect itu sendiri (ketemu lewat testing, ~13KB byte nyasar
+        // bikin APK hasil download gagal di-parse installer). Jadi
+        // redirect-nya diselesaikan dulu di sini lewat CapacitorHttp
+        // (request native, ikut redirect secara wajar), baru URL FINAL
+        // hasil resolve itu yang dipakai Filesystem.downloadFile().
+        var resolveFinalUrl = CapacitorHttp
+          ? CapacitorHttp.request({ method: "HEAD", url: pendingApkUrl }).then(function (res) {
+              return res && res.url ? res.url : pendingApkUrl;
+            }).catch(function () {
+              return pendingApkUrl;
+            })
+          : Promise.resolve(pendingApkUrl);
+
+        resolveFinalUrl
+          .then(function (finalUrl) {
+            return Filesystem.downloadFile({
+              url: finalUrl,
+              path: "update.apk",
+              directory: "CACHE",
+              progress: true,
+            });
+          })
+          .then(function (result) {
+            progressLabel.textContent = "Membuka installer...";
+            return ApkInstaller.install({ path: result.path });
+          })
+          .catch(function (error) {
+            downloadButton.disabled = false;
+            downloadButton.textContent = "Download & Pasang";
+            progressLabel.textContent =
+              "Gagal download/install: " + (error && error.message ? error.message : "coba lagi");
+          });
+      }
+
+      // Menentukan aksi dari hasil cek GitHub Releases (release === null
+      // kalau gagal/offline/dilewati) - dipanggil SETELAH lan-probe
+      // juga selesai, supaya resolvedBaseUrl sudah pasti terisi baik
+      // untuk goToApp() maupun untuk tombol "Lewati" di update-card.
+      function handleReleaseResult(release) {
+
+        var tag = (release && release.tag_name) || "";
+        var remoteVersionCode = parseInt(tag.replace(/[^0-9]/g, ""), 10);
+
+        var apkAsset = release
+          ? (release.assets || []).filter(function (asset) {
+              return /\.apk$/i.test(asset.name);
+            })[0]
+          : null;
+
+        if (release && remoteVersionCode > CURRENT_VERSION_CODE && apkAsset) {
+
+          document.getElementById("status-screen").style.display = "none";
+
+          document.getElementById("update-notes").textContent =
+            "Versi " + tag + " tersedia.\n" + (release.body || "");
+
+          pendingApkUrl = apkAsset.browser_download_url;
+
+          document.getElementById("update-card").style.display = "block";
+
+        } else {
+          goToApp();
+        }
+      }
+
+      // LAN-probe dan cek-update GitHub dijalankan BERBARENGAN (bukan
+      // berurutan seperti sebelumnya) - total waktu tunggu jadi cuma
+      // selama yang PALING LAMA dari keduanya, bukan jumlah keduanya.
+      // Cek-update sendiri dilewati sama sekali kalau belum waktunya
+      // (lihat shouldCheckForUpdate), jadi kebanyakan buka app cuma
+      // nunggu lan-probe doang.
+      var lanProbePromise = fetchWithTimeout(
+        LAN_URL,
+        { mode: "no-cors", cache: "no-store" },
+        TIMEOUT_MS
+      )
+        .then(function () {
+          resolvedBaseUrl = LAN_URL;
+        })
+        .catch(function () {
+          resolvedBaseUrl = PUBLIC_URL;
+        });
+
+      if (shouldCheckForUpdate()) {
+
+        var updateCheckPromise = fetchWithTimeout(
+          GITHUB_RELEASES_API,
+          { cache: "no-store" },
+          TIMEOUT_MS
+        )
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (release) {
+            markUpdateChecked();
+            return release;
+          })
+          .catch(function () {
+            // Gagal cek update (offline, atau belum ada rilis sama
+            // sekali) - jangan sampai macet, anggap tidak ada update.
+            markUpdateChecked();
+            return null;
+          });
+
+        Promise.all([lanProbePromise, updateCheckPromise]).then(function (results) {
+          handleReleaseResult(results[1]);
+        });
+
+      } else {
+        lanProbePromise.then(goToApp);
+      }
+    </script>
+  </body>
+</html>

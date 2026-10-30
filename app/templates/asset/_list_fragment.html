@@ -1,0 +1,1052 @@
+        <div class="card-body">
+
+
+            <!-- ASSET TYPE TABS -->
+            <!-- Dihapus - navigasi antar kategori sekarang sepenuhnya
+                 lewat sidebar (1 kategori = 1 menu/link sendiri), baik
+                 untuk role yang dibatasi kategorinya maupun yang tidak,
+                 jadi tab panjang ini di halaman sendiri sudah redundan. -->
+
+
+            {% set active_filter_count = (1 if selected_status else 0) + (1 if selected_category else 0) + (1 if selected_location else 0) + (1 if selected_department else 0) %}
+
+            <form method="GET" action="{{ url_for('main.assets') }}">
+
+                <input type="hidden" name="tipe" value="{{ selected_tipe }}">
+
+
+                <!-- BARIS UTAMA: search + tombol Filter, selalu 1 baris -->
+
+                <div class="asset-filter-row-main">
+
+                    <div class="input-group asset-filter-search-group">
+
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+
+                        <input type="text" class="form-control" id="search" name="search" value="{{ search or '' }}"
+                            placeholder="{{ _('Asset tag, name, brand, serial...') }}">
+
+                        <button type="submit" class="btn btn-primary" title="{{ _('Search') }}">
+                            <i class="bi bi-search"></i>
+                            <span class="d-none d-sm-inline">{{ _('Search') }}</span>
+                        </button>
+
+                    </div>
+
+                    <button type="button" class="btn btn-outline-secondary asset-filter-toggle-btn"
+                        data-bs-toggle="collapse" data-bs-target="#assetFilterPanel"
+                        aria-expanded="{{ 'true' if active_filter_count else 'false' }}"
+                        title="{{ _('Filter') }}">
+
+                        <i class="bi bi-funnel"></i>
+
+                        {% if active_filter_count %}
+                        <span class="badge rounded-pill bg-primary asset-filter-count-badge">{{ active_filter_count }}</span>
+                        {% endif %}
+
+                    </button>
+
+                </div>
+
+
+                <!-- PANEL FILTER TAMBAHAN: Status/Kategori/dst, bebas
+                     turun ke beberapa baris karena bukan lagi bagian
+                     dari baris utama yang wajib muat di 1 baris. -->
+
+                <div class="collapse{{ ' show' if active_filter_count else '' }} asset-filter-panel" id="assetFilterPanel">
+
+                    <div class="asset-filter-row">
+
+
+                        <!-- STATUS -->
+
+                        <div class="asset-filter-item asset-filter-item-select">
+
+                            <label class="asset-filter-label" for="status">
+
+                                {{ _('Status') }}
+
+                            </label>
+
+
+                            <select class="form-select" id="status" name="status">
+
+                                <option value="">
+                                    {{ _('All Statuses') }}
+                                </option>
+
+
+                                <option value="Active" {% if selected_status == "Active" %} selected {% endif %}>
+                                    {{ _('Active') }}
+                                </option>
+
+
+                                <option value="Maintenance" {% if selected_status == "Maintenance" %} selected {% endif %}>
+                                    {{ _('Maintenance') }}
+                                </option>
+
+
+                                <option value="Inactive" {% if selected_status == "Inactive" %} selected {% endif %}>
+                                    {{ _('Inactive') }}
+                                </option>
+
+
+                                <option value="Lost" {% if selected_status == "Lost" %} selected {% endif %}>
+                                    {{ _('Lost') }}
+                                </option>
+
+
+                                <option value="Retired" {% if selected_status == "Retired" %} selected {% endif %}>
+                                    {{ _('Retired') }}
+                                </option>
+
+
+                            </select>
+
+                        </div>
+
+
+
+                        <!-- CATEGORY -->
+
+                        <div class="asset-filter-item asset-filter-item-select">
+
+                            <label class="asset-filter-label" for="category">
+
+                                {{ _('Category') }}
+
+                            </label>
+
+
+                            <select class="form-select" id="category" name="category">
+
+                                <option value="">
+                                    {{ _('All Categories') }}
+                                </option>
+
+
+                                {% for category in categories %}
+
+                                <option value="{{ category.name }}" {% if selected_category == category.name %} selected
+                                    {% endif %}>
+
+                                    {{ category.name }}
+
+                                </option>
+
+                                {% endfor %}
+
+
+                            </select>
+
+                        </div>
+
+
+
+                        {% if selected_tipe not in ('atk', 'pantry') %}
+
+                        <!-- LOCATION -->
+
+                        <div class="asset-filter-item asset-filter-item-select">
+
+                            <label class="asset-filter-label" for="location">
+
+                                {{ _('Location') }}
+
+                            </label>
+
+
+                            <select class="form-select" id="location" name="location">
+
+                                <option value="">
+                                    {{ _('All Locations') }}
+                                </option>
+
+
+                                {% for location in locations %}
+
+                                <option value="{{ location.name }}" {% if selected_location == location.name %} selected
+                                    {% endif %}>
+
+                                    {{ location.name }}
+
+                                </option>
+
+                                {% endfor %}
+
+
+                            </select>
+
+                        </div>
+
+
+
+                        <!-- DEPARTMENT -->
+
+                        <div class="asset-filter-item asset-filter-item-select">
+
+                            <label class="asset-filter-label" for="department">
+
+                                {{ _('Department') }}
+
+                            </label>
+
+
+                            <select class="form-select" id="department" name="department">
+
+                                <option value="">
+                                    {{ _('All Departments') }}
+                                </option>
+
+
+                                {% for department in departments %}
+
+                                <option value="{{ department.name }}" {% if selected_department == department.name %}
+                                    selected {% endif %}>
+
+                                    {{ department.name }}
+
+                                </option>
+
+                                {% endfor %}
+
+
+                            </select>
+
+                        </div>
+
+                        {% endif %}
+
+
+                        <!-- RESET -->
+
+                        <div class="asset-filter-item asset-filter-actions">
+
+                            <label class="asset-filter-label d-none d-sm-block">&nbsp;</label>
+
+                            <a href="{{ url_for('main.assets') }}" class="btn btn-outline-secondary"
+                                title="{{ _('Reset Filter') }}">
+                                {{ _('Reset') }}
+                            </a>
+
+                        </div>
+
+
+                    </div>
+
+                </div>
+
+
+            </form>
+
+
+        </div>
+
+
+        <!-- ========================================================
+             ASSET TABLE
+             ======================================================== -->
+
+        {% if assets %}
+
+
+        <!-- MOBILE: kartu per asset (d-lg-none) - info sekunder
+             dirangkum jadi grid label:value kecil, mencakup semua
+             kolom kondisional yang sama dengan tabel desktop,
+             supaya tidak perlu scroll horizontal di layar sempit. -->
+
+        <div class="d-lg-none">
+
+            {% for asset in assets %}
+
+            <div class="asset-list-card-mobile">
+
+                <div class="d-flex gap-2">
+
+                    <div class="text-muted small" style="min-width: 22px;">
+                        {{ category_sequence_map.get(asset.category, loop.index) if category_sequence_map else loop.index }}
+                    </div>
+
+                    {% if asset.cover_photo_filename %}
+                    <img src="{{ url_for(
+                                        'static',
+                                        filename='uploads/assets/' ~ asset.cover_photo_filename
+                                    ) }}" alt="{{ asset.asset_name }}" class="asset-list-photo" loading="lazy"
+                        data-bs-toggle="modal" data-bs-target="#assetListPhotoModal"
+                        data-photo-url="{{ url_for('static', filename='uploads/assets/' ~ asset.cover_photo_filename) }}"
+                        data-asset-name="{{ asset.asset_name }}" data-asset-tag="{{ asset.asset_tag }}">
+                    {% else %}
+                    <div class="asset-list-photo-empty" title="{{ _('No photo yet') }}">
+                        <i class="bi bi-image"></i>
+                    </div>
+                    {% endif %}
+
+                    <div class="flex-grow-1" style="min-width: 0;">
+
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+
+                            <div style="min-width: 0;">
+                                <a href="{{ url_for('main.asset_detail', asset_id=asset.id) }}"
+                                    class="asset-tag d-block text-truncate">
+                                    {{ asset.asset_tag }}
+                                </a>
+                                <span class="asset-name d-block text-truncate">
+                                    {{ asset.asset_name or "-" }}
+                                </span>
+                            </div>
+
+                            <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0 asset-status-stack">
+
+                                {% if asset.status == "Active" %}
+                                <span class="badge bg-success asset-status">{{ _('Active') }}</span>
+                                {% elif asset.status == "Maintenance" %}
+                                <span class="badge bg-warning text-dark asset-status">{{ _('Maintenance') }}</span>
+                                {% elif asset.status == "Inactive" %}
+                                <span class="badge bg-secondary asset-status">{{ _('Inactive') }}</span>
+                                {% elif asset.status == "Lost" %}
+                                <span class="badge bg-danger asset-status">{{ _('Lost') }}</span>
+                                {% elif asset.status == "Retired" %}
+                                <span class="badge bg-dark asset-status">{{ _('Retired') }}</span>
+                                {% else %}
+                                <span class="badge bg-info asset-status">{{ asset.status or _('No Status') }}</span>
+                                {% endif %}
+
+                                <div class="asset-action-buttons">
+
+                                    {% if asset.is_incomplete %}
+                                    <span class="badge bg-secondary asset-incomplete-icon" title="{{ _('Some asset information is still missing (e.g. serial number, brand/model, location, or department).') }}">
+                                        <i class="bi bi-exclamation-circle"></i>
+                                    </span>
+                                    {% endif %}
+
+                                    <a href="{{ url_for('main.asset_detail', asset_id=asset.id) }}" class="btn btn-outline-primary" title="{{ _('Detail') }}">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+
+                                    <a href="{{ url_for('main.edit_asset', asset_id=asset.id) }}" class="btn btn-outline-warning" title="{{ _('Edit') }}">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+
+                                    <a href="{{ url_for('main.print_asset_labels', ids=asset.id) }}" class="btn btn-outline-secondary" title="{{ _('Print QR / Label') }}">
+                                        <i class="bi bi-qr-code"></i>
+                                    </a>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <div class="row row-cols-2 g-0 small text-muted mt-1 asset-list-card-grid">
+
+                            <div><span class="text-muted">{{ _('Category') }}:</span> {{ asset.category or "-" }}</div>
+                            <div><span class="text-muted">{{ _('Brand') }}:</span> {{ asset.brand or "-" }}</div>
+
+                            {% if show_model_col %}
+                            <div><span class="text-muted">{{ _('Model') }}:</span> {{ asset.model or "-" }}</div>
+                            {% endif %}
+
+                            {% if show_serial_col %}
+                            <div><span class="text-muted">{{ _('Serial Number') }}:</span> {{ asset.serial_number or "-" }}</div>
+                            {% endif %}
+
+                            {% if show_spec_col %}
+                            <div><span class="text-muted">{{ _('Specification / Capacity') }}:</span> {{ asset.specification or "-" }}</div>
+                            {% endif %}
+
+                            {% if show_vehicle_cols %}
+                            <div><span class="text-muted">{{ _('License Plate Number') }}:</span> {{ asset.plat_nomor or "-" }}</div>
+                            <div><span class="text-muted">{{ _('Tax (STNK) Due Date') }}:</span> {% if asset.masa_pajak %}{{ asset.masa_pajak.strftime("%d-%m-%Y") }}{% else %}-{% endif %}</div>
+                            {% endif %}
+
+                            {% if show_stock_cols %}
+                            <div><span class="text-muted">{{ _('Quantity / Stock') }}:</span> {{ asset.stock_quantity | fmt_qty if asset.stock_quantity is not none else "-" }}</div>
+                            <div><span class="text-muted">{{ _('Unit') }}:</span> {{ asset.unit or "-" }}</div>
+                            {% endif %}
+
+                            {% if show_price_col %}
+                            <div><span class="text-muted">{{ _('Selling Price') }}:</span> {% if asset.selling_price %}Rp {{ "{:,.0f}".format( asset.selling_price ).replace(",", ".") }}{% else %}-{% endif %}</div>
+                            {% endif %}
+
+                            {% if selected_tipe not in ('atk', 'pantry') %}
+                            <div><span class="text-muted">{{ _('Location') }}:</span> {{ asset.location or "-" }}</div>
+                            <div><span class="text-muted">{{ _('Department') }}:</span> {{ asset.department or "-" }}</div>
+                            {% endif %}
+
+                            <div><span class="text-muted">{{ _('PIC') }}:</span> {{ asset.pic or "-" }}</div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+
+        <!-- DESKTOP/TABLET: tabel seperti biasa (d-none d-lg-block) -->
+
+        <div class="table-responsive d-none d-lg-block">
+
+
+            <table class="
+                        table
+                        table-hover
+                        align-middle
+                        asset-table
+                    ">
+
+
+                <thead class="table-light">
+
+
+                    <tr>
+
+
+                        <th>
+                            {{ _('No.') }}
+                        </th>
+
+
+                        <th class="asset-photo-cell">
+                            {{ _('Photo') }}
+                        </th>
+
+
+                        <th>
+                            {{ _('Asset Tag') }}
+                        </th>
+
+
+                        <th>
+                            {{ _('Asset Name') }}
+                        </th>
+
+
+                        <th>
+                            {{ _('Category') }}
+                        </th>
+
+
+                        <th>
+                            {{ _('Brand') }}
+                        </th>
+
+
+                        {% if show_model_col %}
+                        <th>
+                            {{ _('Model') }}
+                        </th>
+                        {% endif %}
+
+
+                        {% if show_serial_col %}
+                        <th>
+                            {{ _('Serial Number') }}
+                        </th>
+                        {% endif %}
+
+
+                        {% if show_spec_col %}
+                        <th>
+                            {{ _('Specification / Capacity') }}
+                        </th>
+                        {% endif %}
+
+
+                        {% if show_vehicle_cols %}
+                        <th>
+                            {{ _('License Plate Number') }}
+                        </th>
+
+                        <th>
+                            {{ _('Tax (STNK) Due Date') }}
+                        </th>
+                        {% endif %}
+
+
+                        {% if show_stock_cols %}
+                        <th>
+                            {{ _('Quantity / Stock') }}
+                        </th>
+
+                        <th>
+                            {{ _('Unit') }}
+                        </th>
+                        {% endif %}
+
+
+                        {% if show_price_col %}
+                        <th>
+                            {{ _('Selling Price') }}
+                        </th>
+                        {% endif %}
+
+
+                        {% if selected_tipe not in ('atk', 'pantry') %}
+
+                        <th>
+                            {{ _('Location') }}
+                        </th>
+
+
+                        <th>
+                            {{ _('Department') }}
+                        </th>
+
+                        {% endif %}
+
+
+                        <th>
+                            {{ _('PIC') }}
+                        </th>
+
+
+                        <th>
+                            {{ _('Status') }}
+                        </th>
+
+
+                        <th class="asset-action-cell">
+                            {{ _('Actions') }}
+                        </th>
+
+
+                    </tr>
+
+
+                </thead>
+
+
+
+                <tbody>
+
+
+                    {% for asset in assets %}
+
+
+                    <tr>
+
+
+                        <!-- NO -->
+
+                        <td>
+
+                            {{ category_sequence_map.get(asset.category, loop.index) if category_sequence_map else loop.index }}
+
+                        </td>
+
+
+
+                        <!-- FOTO -->
+
+                        <td class="asset-photo-cell">
+
+
+                            {% if asset.cover_photo_filename %}
+
+
+                            <img src="{{ url_for(
+                                                'static',
+                                                filename='uploads/assets/' ~ asset.cover_photo_filename
+                                            ) }}" alt="{{ asset.asset_name }}" class="asset-list-photo" loading="lazy"
+                                data-bs-toggle="modal" data-bs-target="#assetListPhotoModal"
+                                data-photo-url="{{ url_for('static', filename='uploads/assets/' ~ asset.cover_photo_filename) }}"
+                                data-asset-name="{{ asset.asset_name }}" data-asset-tag="{{ asset.asset_tag }}">
+
+
+                            {% else %}
+
+
+                            <div class="asset-list-photo-empty" title="{{ _('No photo yet') }}">
+
+                                <i class="bi bi-image"></i>
+
+                            </div>
+
+
+                            {% endif %}
+
+
+                        </td>
+
+
+
+                        <!-- ASSET TAG -->
+
+                        <td>
+
+
+                            <a href="{{ url_for(
+                                            'main.asset_detail',
+                                            asset_id=asset.id
+                                        ) }}" class="asset-tag">
+
+                                {{ asset.asset_tag }}
+
+                            </a>
+
+
+                        </td>
+
+
+
+                        <!-- ASSET NAME -->
+
+                        <td>
+
+                            <span class="asset-name">
+
+                                {{ asset.asset_name or "-" }}
+
+                            </span>
+
+                        </td>
+
+
+
+                        <!-- CATEGORY -->
+
+                        <td>
+
+                            {{ asset.category or "-" }}
+
+                        </td>
+
+
+
+                        <!-- BRAND -->
+
+                        <td>
+
+                            {{ asset.brand or "-" }}
+
+                        </td>
+
+
+
+                        <!-- MODEL -->
+
+                        {% if show_model_col %}
+                        <td>
+
+                            {{ asset.model or "-" }}
+
+                        </td>
+                        {% endif %}
+
+
+
+                        <!-- SERIAL -->
+
+                        {% if show_serial_col %}
+                        <td>
+
+                            {{ asset.serial_number or "-" }}
+
+                        </td>
+                        {% endif %}
+
+
+
+                        <!-- SPECIFICATION -->
+
+                        {% if show_spec_col %}
+                        <td>
+
+                            {{ asset.specification or "-" }}
+
+                        </td>
+                        {% endif %}
+
+
+
+                        <!-- PLAT NOMOR & MASA PAJAK -->
+
+                        {% if show_vehicle_cols %}
+                        <td>
+
+                            {{ asset.plat_nomor or "-" }}
+
+                        </td>
+
+                        <td>
+
+                            {% if asset.masa_pajak %}{{ asset.masa_pajak.strftime("%d-%m-%Y") }}{% else %}-{% endif %}
+
+                        </td>
+                        {% endif %}
+
+
+
+                        <!-- STOCK & UNIT -->
+
+                        {% if show_stock_cols %}
+                        <td>
+
+                            {{ asset.stock_quantity | fmt_qty if asset.stock_quantity is not none else "-" }}
+
+                        </td>
+
+                        <td>
+
+                            {{ asset.unit or "-" }}
+
+                        </td>
+                        {% endif %}
+
+
+
+                        <!-- SELLING PRICE -->
+
+                        {% if show_price_col %}
+                        <td>
+
+                            {% if asset.selling_price %}Rp {{ "{:,.0f}".format( asset.selling_price ).replace(",", ".") }}{% else %}-{% endif %}
+
+                        </td>
+                        {% endif %}
+
+
+
+                        {% if selected_tipe not in ('atk', 'pantry') %}
+
+                        <!-- LOCATION -->
+
+                        <td>
+
+                            {{ asset.location or "-" }}
+
+                        </td>
+
+
+                        <!-- DEPARTMENT -->
+
+                        <td>
+
+                            {{ asset.department or "-" }}
+
+                        </td>
+
+                        {% endif %}
+
+
+                        <!-- PIC -->
+
+                        <td>
+
+                            {{ asset.pic or "-" }}
+
+                        </td>
+
+
+                        <!-- STATUS -->
+
+                        <td>
+
+
+                            {% if asset.status == "Active" %}
+
+
+                            <span class="
+                                                badge
+                                                bg-success
+                                                asset-status
+                                            ">
+
+                                {{ _('Active') }}
+
+                            </span>
+
+
+                            {% elif asset.status == "Maintenance" %}
+
+
+                            <span class="
+                                                badge
+                                                bg-warning
+                                                text-dark
+                                                asset-status
+                                            ">
+
+                                {{ _('Maintenance') }}
+
+                            </span>
+
+
+                            {% elif asset.status == "Inactive" %}
+
+
+                            <span class="
+                                                badge
+                                                bg-secondary
+                                                asset-status
+                                            ">
+
+                                {{ _('Inactive') }}
+
+                            </span>
+
+
+                            {% elif asset.status == "Lost" %}
+
+
+                            <span class="
+                                                badge
+                                                bg-danger
+                                                asset-status
+                                            ">
+
+                                {{ _('Lost') }}
+
+                            </span>
+
+
+                            {% elif asset.status == "Retired" %}
+
+
+                            <span class="
+                                                badge
+                                                bg-dark
+                                                asset-status
+                                            ">
+
+                                {{ _('Retired') }}
+
+                            </span>
+
+
+                            {% else %}
+
+
+                            <span class="
+                                                badge
+                                                bg-info
+                                                asset-status
+                                            ">
+
+                                {{ asset.status or _('No Status') }}
+
+                            </span>
+
+
+                            {% endif %}
+
+                            {% if asset.is_incomplete %}
+                            <br>
+                            <span class="badge bg-secondary mt-1" title="{{ _('Some asset information is still missing (e.g. serial number, brand/model, location, or department).') }}">
+                                <i class="bi bi-exclamation-circle"></i>
+                                {{ _('Incomplete Data') }}
+                            </span>
+                            {% endif %}
+
+                        </td>
+
+                        <!-- ACTION -->
+
+                        <td class="asset-action-cell">
+
+                            <div class="asset-action-buttons">
+
+                                <!-- DETAIL -->
+
+                                <a href="{{ url_for(
+                        'main.asset_detail',
+                        asset_id=asset.id
+                    ) }}" class="btn btn-outline-primary" title="{{ _('Detail') }}">
+
+                                    <i class="bi bi-eye"></i>
+
+                                </a>
+
+
+                                <!-- EDIT -->
+
+                                <a href="{{ url_for(
+                        'main.edit_asset',
+                        asset_id=asset.id
+                    ) }}" class="btn btn-outline-warning" title="{{ _('Edit') }}">
+
+                                    <i class="bi bi-pencil"></i>
+
+                                </a>
+
+
+                                <!-- CETAK QR -->
+
+                                <a href="{{ url_for(
+                        'main.print_asset_labels',
+                        ids=asset.id
+                    ) }}" class="btn btn-outline-secondary" title="{{ _('Print QR / Label') }}">
+
+                                    <i class="bi bi-qr-code"></i>
+
+                                </a>
+
+                            </div>
+
+                        </td>
+
+
+                    </tr>
+
+
+                    {% endfor %}
+
+
+                </tbody>
+
+
+            </table>
+
+
+        </div>
+
+
+        {% else %}
+
+
+        <div class="asset-empty-state">
+
+
+            <i class="bi bi-box-seam"></i>
+
+
+            <div class="fw-semibold">
+
+                {{ _('No assets found.') }}
+
+            </div>
+
+
+            <div class="small mt-1">
+
+                {{ _('Try changing your search term or filters.') }}
+
+            </div>
+
+
+            <a href="{{ url_for('main.add_asset', tipe=selected_tipe or none) }}" class="btn btn-primary mt-3">
+
+                <i class="bi bi-plus-lg me-1"></i>
+
+                {{ _('Add Asset') }}
+
+            </a>
+
+
+        </div>
+
+
+        {% endif %}
+
+
+
+        <!-- ====================================================
+             FOOTER
+             ==================================================== -->
+
+        {% if assets %}
+
+
+        <div class="asset-table-footer">
+
+
+            <div class="
+                        d-flex
+                        justify-content-between
+                        align-items-center
+                        flex-wrap
+                        gap-2
+                    ">
+
+
+                <div>
+
+                    {{ _('Showing') }}
+
+                    <strong>
+                        {{ assets|length }}
+                    </strong>
+
+                    {{ _('of') }}
+
+                    <strong>
+                        {{ pagination.total }}
+                    </strong>
+
+                    {{ _('assets') }}
+
+                </div>
+
+
+                <div>
+
+                    {% if search %}
+
+                    {{ _('Search:') }}
+
+                    <strong>
+                        "{{ search }}"
+                    </strong>
+
+                    {% endif %}
+
+
+                </div>
+
+
+            </div>
+
+
+            {% if pagination and pagination.pages > 1 %}
+
+            <nav class="mt-3" aria-label="{{ _('Asset page navigation') }}">
+
+                <ul class="pagination pagination-sm justify-content-center mb-0">
+
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('main.assets', page=pagination.prev_num, search=search, status=selected_status, category=selected_category, location=selected_location, department=selected_department, vendor=selected_vendor, tipe=selected_tipe) if pagination.has_prev else '#' }}">
+                            {{ _('Previous') }}
+                        </a>
+                    </li>
+
+                    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+
+                        {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('main.assets', page=page_num, search=search, status=selected_status, category=selected_category, location=selected_location, department=selected_department, vendor=selected_vendor, tipe=selected_tipe) }}">
+                                {{ page_num }}
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">…</span>
+                        </li>
+                        {% endif %}
+
+                    {% endfor %}
+
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('main.assets', page=pagination.next_num, search=search, status=selected_status, category=selected_category, location=selected_location, department=selected_department, vendor=selected_vendor, tipe=selected_tipe) if pagination.has_next else '#' }}">
+                            {{ _('Next') }}
+                        </a>
+                    </li>
+
+                </ul>
+
+            </nav>
+
+            {% endif %}
+
+
+        </div>
+
+
+        {% endif %}

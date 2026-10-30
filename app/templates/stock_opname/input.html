@@ -1,0 +1,488 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Stock Opname') }} - {{ tipe_label }} - {{ app_setting.app_name }}{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+    <div class="page-header-card">
+
+        <div class="page-header-row">
+
+            <div class="page-header-left">
+
+                <div class="page-header-icon">
+                    <i class="bi bi-clipboard-check"></i>
+                </div>
+
+                <div>
+
+                    <h2 class="page-header-title">
+                        {{ _('Stock Opname') }} - {{ tipe_label }}
+                    </h2>
+
+                    <p class="page-header-subtitle mb-0">
+                        {{ _('Fill in Stock Out for this period - Initial Stock & Final Stock are calculated automatically.') }}
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div class="page-header-actions">
+
+                <a
+                    href="{{ url_for('main.stock_opname_history', tipe=tipe) }}"
+                    class="btn btn-outline-secondary"
+                >
+                    <i class="bi bi-clock-history"></i>
+                    {{ _('History') }}
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+
+        {% if messages %}
+
+            {% for category, message in messages %}
+
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                </div>
+
+            {% endfor %}
+
+        {% endif %}
+
+    {% endwith %}
+
+
+    <form method="POST" id="stockOpnameForm">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="card shadow-sm mb-3">
+
+            <div class="card-body d-flex flex-wrap align-items-end gap-3">
+
+                <div>
+                    <label class="form-label small mb-1">{{ _('Period') }}</label>
+                    <input
+                        type="month"
+                        name="period"
+                        class="form-control"
+                        value="{{ default_period }}"
+                        required
+                    >
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i>
+                    {{ _('Save Stock Opname') }}
+                </button>
+
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm overflow-hidden">
+
+            <div class="card-header-accent">
+
+                <div class="card-header-accent-left">
+
+                    <div class="card-header-accent-icon">
+                        <i class="bi bi-pencil"></i>
+                    </div>
+
+                    <div>
+                        <div class="card-header-accent-title">
+                            {{ tipe_label }}
+                        </div>
+
+                        <div class="card-header-accent-subtitle">
+                            {{ rows|length }} {{ _('items') }}
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="card-body">
+
+                <!-- MOBILE: kartu per barang - field asli (yang
+                     ter-submit) ada di sini; versi tabel desktop di
+                     bawah cuma mirror tampilan, supaya tidak ada 2
+                     field name yang sama ikut ter-submit sekaligus. -->
+                <div class="d-lg-none">
+
+                    {% for asset, stok_awal, stok_keluar_prefill, qty_beli_prefill in rows %}
+
+                    <div class="border rounded-3 p-2 mb-2">
+
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="fw-semibold">{{ asset.asset_name }}</div>
+                            <div class="text-muted small">{{ asset.unit or "-" }}</div>
+                        </div>
+
+                        <div class="row g-2 mt-1 small">
+
+                            <div class="col-4">
+                                <div class="text-muted">{{ _('Initial Stock') }}</div>
+                                <div
+                                    class="stock-opname-awal fw-semibold"
+                                    data-asset-id="{{ asset.id }}"
+                                    data-awal="{{ stok_awal }}"
+                                >
+                                    {{ stok_awal }}
+                                </div>
+                            </div>
+
+                            <div class="col-4">
+                                <div class="text-muted">{{ _('Stock Out') }}</div>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    class="form-control form-control-sm stock-opname-keluar"
+                                    name="stok_keluar_{{ asset.id }}"
+                                    data-asset-id="{{ asset.id }}"
+                                    value="{{ stok_keluar_prefill }}"
+                                >
+                            </div>
+
+                            <div class="col-4">
+                                <div class="text-muted">{{ _('Final Stock') }}</div>
+                                <div class="stock-opname-akhir fw-semibold" data-asset-id="{{ asset.id }}">
+                                    {{ stok_awal - stok_keluar_prefill }}
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {% if has_pr %}
+                        <div class="row g-2 mt-1 small">
+
+                            {% if budget %}
+                            <div class="col-4">
+                                <div class="text-muted">{{ _('Unit Price') }}</div>
+                                <div
+                                    class="stock-opname-price text-nowrap"
+                                    data-asset-id="{{ asset.id }}"
+                                    data-price="{{ asset.purchase_price or 0 }}"
+                                >
+                                    Rp {{ "{:,.0f}".format(asset.purchase_price or 0).replace(",", ".") }}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="col-4">
+                                <div class="text-muted">{{ _('Qty to Buy') }}</div>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    class="form-control form-control-sm stock-opname-qty-beli"
+                                    name="qty_beli_{{ asset.id }}"
+                                    data-asset-id="{{ asset.id }}"
+                                    value="{{ qty_beli_prefill }}"
+                                >
+                            </div>
+
+                            {% if budget %}
+                            <div class="col-4">
+                                <div class="text-muted">{{ _('Total Price') }}</div>
+                                <div class="stock-opname-total fw-semibold text-nowrap" data-asset-id="{{ asset.id }}">
+                                    Rp 0
+                                </div>
+                            </div>
+                            {% endif %}
+
+                        </div>
+                        {% endif %}
+
+                    </div>
+
+                    {% else %}
+
+                    <div class="text-center text-muted py-3">
+                        {{ _('No items available.') }}
+                    </div>
+
+                    {% endfor %}
+
+                    {% if budget and rows %}
+                    <div class="border rounded-3 p-2 mb-2 d-flex justify-content-between align-items-center">
+                        <div class="fw-semibold">
+                            {{ _('Grand Total') }}
+                            <div class="text-muted small fw-normal">
+                                {{ _('Budget') }}: Rp {{ "{:,.0f}".format(budget).replace(",", ".") }}
+                            </div>
+                        </div>
+                        <div id="stockOpnameGrandTotalMobile" class="fw-bold text-nowrap">Rp 0</div>
+                    </div>
+                    {% endif %}
+
+                </div>
+
+                <!-- DESKTOP/TABLET: tabel seperti biasa. -->
+                <div class="table-responsive d-none d-lg-block">
+
+                    <table class="table table-hover table-sm align-middle">
+
+                        <thead>
+
+                            <tr>
+                                <th>{{ _('No.') }}</th>
+                                <th>{{ _('Item Name') }}</th>
+                                <th>{{ _('Unit') }}</th>
+                                <th>{{ _('Initial Stock') }}</th>
+                                <th style="min-width: 110px;">{{ _('Stock Out') }}</th>
+                                <th>{{ _('Final Stock') }}</th>
+                                {% if has_pr %}
+                                {% if budget %}
+                                <th>{{ _('Unit Price') }}</th>
+                                {% endif %}
+                                <th style="min-width: 110px;">{{ _('Qty to Buy') }}</th>
+                                {% if budget %}
+                                <th>{{ _('Total Price') }}</th>
+                                {% endif %}
+                                {% endif %}
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            {% for asset, stok_awal, stok_keluar_prefill, qty_beli_prefill in rows %}
+
+                            <tr>
+
+                                <td>{{ loop.index }}</td>
+
+                                <td>{{ asset.asset_name }}</td>
+
+                                <td>{{ asset.unit or "-" }}</td>
+
+                                <td
+                                    class="stock-opname-awal"
+                                    data-asset-id="{{ asset.id }}"
+                                    data-awal="{{ stok_awal }}"
+                                >
+                                    {{ stok_awal }}
+                                </td>
+
+                                <td>
+
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        class="form-control form-control-sm stock-opname-keluar-mirror"
+                                        data-mirror-target="stok_keluar_{{ asset.id }}"
+                                        data-asset-id="{{ asset.id }}"
+                                        value="{{ stok_keluar_prefill }}"
+                                    >
+
+                                </td>
+
+                                <td class="stock-opname-akhir fw-semibold" data-asset-id="{{ asset.id }}">
+                                    {{ stok_awal - stok_keluar_prefill }}
+                                </td>
+
+                                {% if has_pr %}
+
+                                {% if budget %}
+                                <td
+                                    class="stock-opname-price text-nowrap"
+                                    data-asset-id="{{ asset.id }}"
+                                    data-price="{{ asset.purchase_price or 0 }}"
+                                >
+                                    Rp {{ "{:,.0f}".format(asset.purchase_price or 0).replace(",", ".") }}
+                                </td>
+                                {% endif %}
+
+                                <td>
+
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        class="form-control form-control-sm stock-opname-qty-beli-mirror"
+                                        data-mirror-target="qty_beli_{{ asset.id }}"
+                                        data-asset-id="{{ asset.id }}"
+                                        value="{{ qty_beli_prefill }}"
+                                    >
+
+                                </td>
+
+                                {% if budget %}
+                                <td class="stock-opname-total fw-semibold text-nowrap" data-asset-id="{{ asset.id }}">
+                                    Rp 0
+                                </td>
+                                {% endif %}
+
+                                {% endif %}
+
+                            </tr>
+
+                            {% else %}
+
+                            <tr>
+                                <td colspan="{{ 6 + (1 if has_pr else 0) + (2 if budget else 0) }}" class="text-center text-muted">
+                                    {{ _('No items available.') }}
+                                </td>
+                            </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                        {% if budget and rows %}
+
+                        <tfoot>
+                            <tr class="table-light">
+                                <td colspan="8" class="text-end fw-semibold">
+                                    {{ _('Grand Total') }}
+                                    <span class="text-muted fw-normal">
+                                        ({{ _('Budget') }}: Rp {{ "{:,.0f}".format(budget).replace(",", ".") }})
+                                    </span>
+                                </td>
+                                <td id="stockOpnameGrandTotal" class="fw-bold text-nowrap">
+                                    Rp 0
+                                </td>
+                            </tr>
+                        </tfoot>
+
+                        {% endif %}
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="mt-3 mb-5">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i>
+                {{ _('Save Stock Opname') }}
+            </button>
+        </div>
+
+    </form>
+
+</div>
+
+<script>
+// Kartu mobile dan tabel desktop menampilkan barang yang sama, tapi
+// cuma kartu mobile yang punya input ber-"name" asli - input di tabel
+// desktop (*-mirror) cuma disinkronkan ke situ lewat data-asset-id,
+// supaya tidak ada 2 field dengan name sama yang ikut ter-submit.
+
+function stockOpnameRecalcAkhir(assetId) {
+
+    var awalEl = document.querySelector('.stock-opname-awal[data-asset-id="' + assetId + '"]');
+    var realInput = document.querySelector('.stock-opname-keluar[data-asset-id="' + assetId + '"]');
+
+    var awal = parseInt(awalEl.getAttribute('data-awal'), 10) || 0;
+    var keluar = parseInt(realInput.value, 10) || 0;
+    var akhir = awal - keluar;
+
+    document.querySelectorAll('.stock-opname-akhir[data-asset-id="' + assetId + '"]').forEach(function (el) {
+        el.textContent = akhir;
+    });
+}
+
+document.querySelectorAll('.stock-opname-keluar').forEach(function (input) {
+    input.addEventListener('input', function () {
+        stockOpnameRecalcAkhir(this.dataset.assetId);
+    });
+});
+
+document.querySelectorAll('.stock-opname-keluar-mirror').forEach(function (mirror) {
+    mirror.addEventListener('input', function () {
+        var real = document.querySelector('[name="' + this.dataset.mirrorTarget + '"]');
+        if (real) {
+            real.value = this.value;
+            stockOpnameRecalcAkhir(this.dataset.assetId);
+        }
+    });
+});
+
+{% if budget %}
+
+(function () {
+
+    "use strict";
+
+    var BUDGET = {{ budget }};
+
+    var formatRupiah = function (value) {
+        return "Rp " + Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    };
+
+    var grandTotalEl = document.getElementById("stockOpnameGrandTotal");
+    var grandTotalMobileEl = document.getElementById("stockOpnameGrandTotalMobile");
+
+    function recalcGrandTotal() {
+
+        var total = 0;
+
+        document.querySelectorAll(".stock-opname-qty-beli").forEach(function (input) {
+
+            var assetId = input.dataset.assetId;
+            var priceEl = document.querySelector('.stock-opname-price[data-asset-id="' + assetId + '"]');
+
+            var price = priceEl ? (parseFloat(priceEl.getAttribute("data-price")) || 0) : 0;
+            var qty = parseInt(input.value, 10) || 0;
+            var rowTotal = price * qty;
+
+            document.querySelectorAll('.stock-opname-total[data-asset-id="' + assetId + '"]').forEach(function (el) {
+                el.textContent = formatRupiah(rowTotal);
+            });
+
+            total += rowTotal;
+        });
+
+        [grandTotalEl, grandTotalMobileEl].forEach(function (el) {
+
+            if (!el) { return; }
+
+            el.textContent = formatRupiah(total);
+            el.classList.toggle("text-danger", total > BUDGET);
+            el.classList.toggle("text-success", total <= BUDGET);
+        });
+    }
+
+    document.querySelectorAll(".stock-opname-qty-beli").forEach(function (input) {
+        input.addEventListener("input", recalcGrandTotal);
+    });
+
+    document.querySelectorAll(".stock-opname-qty-beli-mirror").forEach(function (mirror) {
+        mirror.addEventListener("input", function () {
+            var real = document.querySelector('[name="' + this.dataset.mirrorTarget + '"]');
+            if (real) {
+                real.value = this.value;
+                recalcGrandTotal();
+            }
+        });
+    });
+
+    recalcGrandTotal();
+
+})();
+
+{% endif %}
+</script>
+
+{% endblock %}

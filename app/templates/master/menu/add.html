@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Add Menu Item') }} - {{ app_setting.app_name }}{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <div class="page-header-card">
+
+        <div class="page-header-row">
+
+            <div class="page-header-left">
+
+                <div class="page-header-icon">
+                    <i class="bi bi-plus-circle"></i>
+                </div>
+
+                <div>
+                    <h2 class="page-header-title">{{ _('Add Menu Item') }}</h2>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="card">
+
+        <div class="card-body">
+
+            <form method="POST" style="--form-field-label-width: 180px;">
+
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3 form-field-row">
+
+                        <label class="form-label form-field-label">
+                            {{ _('Label') }}
+                            <i class="bi bi-info-circle text-muted" title="{{ _('Can be left blank if this menu item will be a divider.') }}"></i>
+                        </label>
+
+                        <input
+                            type="text"
+                            name="label"
+                            class="form-control"
+                            placeholder="{{ _('Example: Stock Report') }}"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-6 mb-3 form-field-row">
+
+                        <label class="form-label form-field-label">
+                            {{ _('URL') }}
+                            <i class="bi bi-info-circle text-muted" title="{{ _('Leave blank if this menu item is only a dropdown group (has submenus).') }}"></i>
+                        </label>
+
+                        <input
+                            type="text"
+                            name="url"
+                            class="form-control"
+                            placeholder="{{ _('Example: /assets or leave blank if this is a dropdown group') }}"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-4 mb-3 form-field-row">
+
+                        <label class="form-label form-field-label">
+                            {{ _('Icon (Bootstrap Icons)') }}
+                        </label>
+
+                        <div style="flex: 1 1 160px; min-width: 160px;">
+
+                            <input
+                                type="text"
+                                name="icon"
+                                class="form-control"
+                                placeholder="{{ _('Example: bi-box-seam') }}"
+                            >
+
+                            <div class="form-text">
+                                {{ _('See the list of icon names at') }}
+                                <a href="https://icons.getbootstrap.com/" target="_blank" rel="noopener">
+                                    icons.getbootstrap.com
+                                </a>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="col-md-4 mb-3 form-field-row">
+
+                        <label class="form-label form-field-label">
+                            {{ _('Parent Menu') }}
+                            <i class="bi bi-info-circle text-muted" title="{{ _('Select a parent menu if this is a submenu (dropdown).') }}"></i>
+                        </label>
+
+                        <select
+                            name="parent_id"
+                            class="form-select"
+                        >
+                            <option value="">-- {{ _('None (top-level menu)') }} --</option>
+
+                            {% for parent in parent_choices %}
+                            <option value="{{ parent.id }}">{{ parent.label }}</option>
+                            {% endfor %}
+                        </select>
+
+                    </div>
+
+
+                    <div class="col-md-4 mb-3 form-field-row">
+
+                        <label class="form-label form-field-label">
+                            {{ _('Order') }}
+                            <i class="bi bi-info-circle text-muted" title="{{ _('Smaller numbers appear first.') }}"></i>
+                        </label>
+
+                        <input
+                            type="number"
+                            name="order"
+                            class="form-control"
+                            value="0"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-8 mb-3 form-field-row">
+
+                        <label class="form-label form-field-label">
+                            {{ _('Visible For Roles') }}
+                            <i class="bi bi-info-circle text-muted" title="{{ _('Leave all unchecked if this menu item should be visible to all roles.') }}"></i>
+                        </label>
+
+                        <div style="flex: 1 1 200px; min-width: 200px;">
+
+                            {% for choice in role_choices %}
+                            <div class="form-check form-check-inline">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    name="roles"
+                                    value="{{ choice }}"
+                                    id="role_{{ choice }}"
+                                >
+                                <label class="form-check-label" for="role_{{ choice }}">
+                                    {{ choice }}
+                                </label>
+                            </div>
+                            {% endfor %}
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="col-md-4 mb-3">
+
+                        <div class="form-check mt-4">
+
+                            <input
+                                type="checkbox"
+                                class="form-check-input"
+                                id="is_active"
+                                name="is_active"
+                                value="1"
+                                checked
+                            >
+
+                            <label class="form-check-label" for="is_active">
+                                {{ _('Active Menu') }}
+                            </label>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="col-md-4 mb-3">
+
+                        <div class="form-check mt-4">
+
+                            <input
+                                type="checkbox"
+                                class="form-check-input"
+                                id="is_divider"
+                                name="is_divider"
+                                value="1"
+                            >
+
+                            <label class="form-check-label" for="is_divider">
+                                {{ _('Make this a divider (not a link)') }}
+                            </label>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    {{ _('Save Menu') }}
+                </button>
+
+                <a
+                    href="{{ url_for('main.menus') }}"
+                    class="btn btn-secondary"
+                >
+                    {{ _('Cancel') }}
+                </a>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

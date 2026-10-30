@@ -1,0 +1,872 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('ATK Pickup') }} - {{ app_setting.app_name }}{% endblock %}
+
+{% block content %}
+
+<style>
+.signature-canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 160px;
+    border: 2px dashed #adb5bd;
+    border-radius: 8px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.signature-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+    touch-action: none;
+    background: #ffffff;
+}
+
+.signature-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    color: #adb5bd;
+    font-size: 13px;
+    text-align: center;
+    padding: 15px;
+}
+
+.signature-status {
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.signature-status.saved { color: #198754; }
+.signature-status.empty { color: #6c757d; }
+
+.atk-picker-row.is-scanned { background-color: var(--bs-primary-bg-subtle); }
+.atk-qty-input { max-width: 90px; }
+
+.atk-picker-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+}
+
+.atk-picker-card.is-scanned {
+    background-color: var(--bs-primary-bg-subtle);
+    border-color: var(--bs-primary);
+}
+
+.atk-picker-card .atk-picker-card-name {
+    font-weight: 600;
+}
+
+.atk-picker-card .min-w-0 {
+    min-width: 0;
+}
+
+.atk-item-thumb,
+.atk-item-thumb-empty {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    object-fit: cover;
+}
+
+.atk-item-thumb-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bs-tertiary-bg, #eef0f2);
+    color: var(--bs-secondary-color, #8a94a6);
+    font-size: 1rem;
+}
+
+.atk-item-thumb-clickable {
+    cursor: zoom-in;
+}
+
+.atk-photo-modal-content {
+    position: relative;
+    overflow: hidden;
+    cursor: zoom-out;
+    background-color: #000;
+}
+
+.atk-photo-modal-content::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #0a4fb0 0%, #0d6efd 35%, #6ea8fe 50%, #0d6efd 65%, #0a4fb0 100%);
+    z-index: 1;
+}
+
+[data-bs-theme="dark"] .atk-photo-modal-content::before {
+    background: linear-gradient(90deg, #1e40af 0%, #2563eb 35%, #60a5fa 50%, #2563eb 65%, #1e40af 100%);
+}
+
+.atk-photo-modal-backdrop {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.atk-photo-modal-image {
+    display: block;
+    width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+}
+
+.atk-photo-modal-badge {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+.atk-qty-stepper {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.atk-qty-stepper .atk-qty-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.atk-qty-stepper .atk-qty-input {
+    width: 38px;
+    max-width: 38px;
+    padding: 0.2rem 0.15rem;
+    text-align: center;
+    -moz-appearance: textfield;
+}
+
+.atk-qty-stepper .atk-qty-input::-webkit-outer-spin-button,
+.atk-qty-stepper .atk-qty-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+</style>
+
+<div class="container-fluid">
+
+    <div class="page-header-card">
+
+        <div class="page-header-row">
+
+            <div class="page-header-left">
+
+                <div class="page-header-icon">
+                    <i class="bi bi-box-arrow-up"></i>
+                </div>
+
+                <div>
+                    <h2 class="page-header-title">{{ _('ATK Pickup') }}</h2>
+                    <p class="page-header-subtitle mb-0">
+                        {{ _('Record items taken by an employee - available stock is deducted immediately.') }}
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="page-header-actions">
+                <a href="{{ url_for('main.atk_pickup_categories') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-qr-code"></i>
+                    {{ _('Category QR') }}
+                </a>
+                <a href="{{ url_for('main.atk_pickup_report') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-clock-history"></i>
+                    {{ _('Report') }}
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+
+    <form method="POST" id="atkPickupForm">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="category_id" value="{{ scanned_category_id or '' }}">
+        <input type="hidden" name="signature" id="signature" value="">
+
+        <div class="card shadow-sm mb-3" id="atkEmployeeCard">
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+                        <label class="form-label">{{ _('Employee Name') }} <span class="text-danger">*</span></label>
+                        <input type="text" name="employee_name" class="form-control" required autofocus>
+                    </div>
+
+                </div>
+
+                <hr>
+
+                <label class="form-label">{{ _('Signature (optional - name alone is also accepted as proof)') }}</label>
+
+                <div class="signature-canvas-wrapper">
+                    <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+                    <div id="signaturePlaceholder" class="signature-placeholder">
+                        {{ _('Sign here') }}
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <div id="signatureStatus" class="signature-status empty"></div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSignature()">
+                        {{ _('Clear') }}
+                    </button>
+                </div>
+
+                <div id="atkContinueWrapper" class="d-none mt-3">
+                    <button type="button" id="atkContinueBtn" class="btn btn-primary">
+                        {{ _('Continue to Select Items') }}
+                        <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm overflow-hidden d-none" id="atkSelectItemsCard">
+
+            <div class="card-header-accent">
+
+                <div class="card-header-accent-left">
+                    <div class="card-header-accent-icon">
+                        <i class="bi bi-box-seam"></i>
+                    </div>
+                    <div class="card-header-accent-title">{{ _('Select Items') }}</div>
+                </div>
+
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-2 mb-3">
+
+                    <div class="col-7">
+                        <input
+                            type="text"
+                            id="atkPickerSearch"
+                            class="form-control h-100"
+                            placeholder="{{ _('Search item...') }}"
+                        >
+                    </div>
+
+                    <div class="col-5">
+                        <div
+                            id="atkPickupEmployeeSummary"
+                            class="alert alert-primary py-1 px-2 mb-0 h-100 d-flex align-items-center small"
+                        >
+                            <span id="atkPickupEmployeeSummaryText" class="text-truncate flex-grow-1 me-2"></span>
+                            <span
+                                id="atkPickupSignatureBadge"
+                                class="badge rounded-pill"
+                            ></span>
+                            <button
+                                type="button"
+                                id="atkCancelBtn"
+                                class="btn btn-sm btn-link p-0 ms-1 text-reset"
+                                title="{{ _('Cancel') }}"
+                                aria-label="{{ _('Cancel') }}"
+                            >
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- MOBILE: kartu per barang (nama + stok + qty selalu satu
+                     layar, tidak ada info yang hilang karena scroll
+                     horizontal seperti di tabel). -->
+                <div class="d-lg-none">
+
+                    {% for asset in assets %}
+                    {% set asset_category_id = category_id_by_name.get(asset.category) %}
+                    <div
+                        class="atk-picker-item atk-picker-card{{ ' is-scanned' if asset_category_id == scanned_category_id else '' }}"
+                        data-search="{{ asset.asset_name | lower }}"
+                        data-category-id="{{ asset_category_id or '' }}"
+                    >
+                        <div class="d-flex align-items-center gap-2">
+                            {% if asset.cover_photo_filename %}
+                            <img
+                                src="{{ url_for('static', filename='uploads/assets/' ~ asset.cover_photo_filename) }}"
+                                alt="{{ asset.asset_name }}"
+                                class="atk-item-thumb atk-item-thumb-clickable"
+                                loading="lazy"
+                                data-bs-toggle="modal"
+                                data-bs-target="#atkPhotoModal"
+                                data-photo-url="{{ url_for('static', filename='uploads/assets/' ~ asset.cover_photo_filename) }}"
+                                data-asset-name="{{ asset.asset_name }}"
+                            >
+                            {% else %}
+                            <div class="atk-item-thumb-empty">
+                                <i class="bi bi-box-seam"></i>
+                            </div>
+                            {% endif %}
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="atk-picker-card-name text-truncate">{{ asset.asset_name }}</div>
+                                <div class="text-muted small text-truncate">
+                                    {{ asset.category or "-" }} &middot; {{ asset.available_pcs | fmt_qty }} {{ _('Pcs') }}{% if asset.pcs_per_unit and asset.pcs_per_unit != 1 %} ({{ asset.stock_quantity | fmt_qty }} {{ asset.unit or "-" }}){% endif %}
+                                </div>
+                            </div>
+                            <div class="atk-qty-stepper">
+                                <button type="button" class="btn btn-outline-secondary atk-qty-btn atk-qty-dec" aria-label="{{ _('Decrease') }}">&minus;</button>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="{{ asset.available_pcs | fmt_qty }}"
+                                    step="1"
+                                    class="form-control form-control-sm atk-qty-input mx-1"
+                                    placeholder="0"
+                                    name="qty_{{ asset.id }}"
+                                >
+                                <button type="button" class="btn btn-outline-secondary atk-qty-btn atk-qty-inc" aria-label="{{ _('Increase') }}">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">
+                        {{ _('No items available.') }}
+                    </div>
+                    {% endfor %}
+
+                </div>
+
+                <!-- DESKTOP/TABLET: tabel seperti biasa. -->
+                <div class="table-responsive d-none d-lg-block">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>{{ _('Category') }}</th>
+                                <th>{{ _('Item Name') }}</th>
+                                <th>{{ _('Unit') }}</th>
+                                <th>{{ _('Available (Pcs)') }}</th>
+                                <th style="width: 110px;">{{ _('Qty to Take (Pcs)') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            {% for asset in assets %}
+                            {% set asset_category_id = category_id_by_name.get(asset.category) %}
+                            <tr
+                                class="atk-picker-item atk-picker-row{{ ' is-scanned' if asset_category_id == scanned_category_id else '' }}"
+                                data-search="{{ asset.asset_name | lower }}"
+                                data-category-id="{{ asset_category_id or '' }}"
+                            >
+                                <td>{{ asset.category or "-" }}</td>
+                                <td>{{ asset.asset_name }}</td>
+                                <td>{{ asset.unit or "-" }}</td>
+                                <td>
+                                    {{ asset.available_pcs | fmt_qty }} {{ _('Pcs') }}
+                                    {% if asset.pcs_per_unit and asset.pcs_per_unit != 1 %}
+                                    <div class="text-muted small">
+                                        ({{ asset.stock_quantity | fmt_qty }} {{ asset.unit or "-" }})
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="{{ asset.available_pcs | fmt_qty }}"
+                                        step="1"
+                                        class="form-control form-control-sm atk-qty-input"
+                                        data-mirror-target="qty_{{ asset.id }}"
+                                    >
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">
+                                    {{ _('No items available.') }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="mt-3 mb-5 d-none" id="atkSaveButtonWrapper">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i>
+                {{ _('Save Pickup') }}
+            </button>
+        </div>
+
+    </form>
+
+    <!-- MODAL ZOOM FOTO BARANG (dipakai bareng semua kartu mobile) -
+         tanpa header/tombol close, klik di mana saja di dalam modal
+         (termasuk fotonya) langsung menutup, foto mepet penuh ke
+         tepi modal, nama barang jadi badge yang ditumpuk di atas foto. -->
+    <div class="modal fade" id="atkPhotoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content atk-photo-modal-content" data-bs-dismiss="modal">
+                <img id="atkPhotoModalImage" src="" alt="" class="atk-photo-modal-image">
+                <span id="atkPhotoModalLabel" class="badge rounded-pill text-bg-primary px-3 py-2 fs-6 atk-photo-modal-badge"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL KONFIRMASI CANCEL PICKUP -->
+    <div class="modal fade" id="atkCancelConfirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header card-header-accent border-0">
+                    <h5 class="modal-title mb-0"><i class="bi bi-exclamation-triangle text-danger me-1"></i> {{ _('Cancel Pickup') }}</h5>
+                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger mb-0">
+                        {{ _('Cancel this pickup? Everything entered will be cleared.') }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('No') }}</button>
+                    <button type="button" class="btn btn-danger" id="atkCancelConfirmYesBtn">{{ _('Yes, Cancel') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    var canvas = document.getElementById("signatureCanvas");
+    var ctx = canvas.getContext("2d");
+    var hasDrawing = false;
+    var drawing = false;
+
+    // Progres yang belum di-submit (nama, TTD, qty, status "sudah
+    // lanjut ke Select Items") disimpan di sessionStorage, supaya
+    // refresh/reload tidak sengaja tidak menghapus isian OB - cuma
+    // hilang kalau submit berhasil atau tab/app ditutup.
+    var DRAFT_KEY = "atkPickupDraft";
+
+    function saveDraft() {
+        var qty = {};
+        document.querySelectorAll(".atk-qty-input[name]").forEach(function (input) {
+            if (input.value !== "") {
+                qty[input.name.replace("qty_", "")] = input.value;
+            }
+        });
+        var draft = {
+            employeeName: document.querySelector('input[name="employee_name"]').value,
+            signature: hasDrawing ? canvas.toDataURL("image/png") : "",
+            itemsRevealed: itemsRevealed,
+            qty: qty
+        };
+        try {
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        } catch (e) { /* storage tidak tersedia (mode privat dsb) - abaikan */ }
+    }
+
+    function clearDraft() {
+        try {
+            sessionStorage.removeItem(DRAFT_KEY);
+        } catch (e) { /* abaikan */ }
+    }
+
+    function resizeCanvas() {
+        var rect = canvas.getBoundingClientRect();
+        var ratio = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = Math.floor(rect.width * ratio);
+        canvas.height = Math.floor(rect.height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "#111111";
+    }
+
+    function getPoint(event) {
+        var rect = canvas.getBoundingClientRect();
+        var clientX, clientY;
+        if (event.touches && event.touches.length > 0) {
+            clientX = event.touches[0].clientX;
+            clientY = event.touches[0].clientY;
+        } else if (event.changedTouches && event.changedTouches.length > 0) {
+            clientX = event.changedTouches[0].clientX;
+            clientY = event.changedTouches[0].clientY;
+        } else {
+            clientX = event.clientX;
+            clientY = event.clientY;
+        }
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function setStatus(message, saved) {
+        var el = document.getElementById("signatureStatus");
+        el.textContent = message;
+        el.classList.remove("saved", "empty");
+        el.classList.add(saved ? "saved" : "empty");
+    }
+
+    function hidePlaceholder() {
+        document.getElementById("signaturePlaceholder").style.display = "none";
+    }
+
+    function showPlaceholder() {
+        document.getElementById("signaturePlaceholder").style.display = "flex";
+    }
+
+    function saveToHidden() {
+        if (!hasDrawing) { return; }
+        document.getElementById("signature").value = canvas.toDataURL("image/png");
+        setStatus("{{ _('Signature saved.') }}", true);
+    }
+
+    // Daftar barang baru muncul setelah OB mengisi nama ATAU tanda
+    // tangan DAN menekan tombol "Continue" - bukan otomatis saat
+    // mengetik. Tombol "Continue" sendiri baru tampil begitu salah
+    // satu syarat itu terpenuhi. Ringkasan "Taking for: ..." tetap
+    // nempel di atas search bar begitu daftarnya terbuka.
+    var itemsRevealed = false;
+
+    function employeeNameOrSignatureFilled() {
+        var name = document.querySelector('input[name="employee_name"]').value.trim();
+        return Boolean(name) || hasDrawing;
+    }
+
+    function updateContinueButtonVisibility() {
+
+        var ready = employeeNameOrSignatureFilled();
+
+        if (!itemsRevealed) {
+            document.getElementById("atkContinueWrapper").classList.toggle("d-none", !ready);
+        }
+
+        if (itemsRevealed) {
+            updateEmployeeSummary();
+        }
+    }
+
+    function updateEmployeeSummary() {
+        var name = document.querySelector('input[name="employee_name"]').value.trim();
+        document.getElementById("atkPickupEmployeeSummaryText").textContent =
+            "{{ _('Taking for') }}: " +
+            (name || "{{ _('(signature only)') }}");
+
+        var badge = document.getElementById("atkPickupSignatureBadge");
+        badge.className = "badge rounded-pill ms-1 " + (hasDrawing ? "bg-success" : "bg-secondary");
+        badge.textContent = hasDrawing ? "{{ _('Sign') }}" : "{{ _('Unsign') }}";
+    }
+
+    function revealItems(skipGuard) {
+
+        if (!skipGuard && !employeeNameOrSignatureFilled()) { return; }
+
+        itemsRevealed = true;
+
+        document.getElementById("atkEmployeeCard").classList.add("d-none");
+        document.getElementById("atkSelectItemsCard").classList.remove("d-none");
+        document.getElementById("atkSaveButtonWrapper").classList.remove("d-none");
+
+        updateEmployeeSummary();
+        scrollToScannedCategory();
+        saveDraft();
+    }
+
+    document.getElementById("atkContinueBtn").addEventListener("click", revealItems);
+
+    function resetAtkForm() {
+
+        document.querySelector('input[name="employee_name"]').value = "";
+        window.clearSignature();
+
+        document.querySelectorAll(".atk-qty-input").forEach(function (input) {
+            input.value = "";
+        });
+
+        var search = document.getElementById("atkPickerSearch");
+        search.value = "";
+        document.querySelectorAll(".atk-picker-item").forEach(function (row) {
+            row.classList.remove("d-none");
+        });
+
+        itemsRevealed = false;
+        document.getElementById("atkEmployeeCard").classList.remove("d-none");
+        document.getElementById("atkSelectItemsCard").classList.add("d-none");
+        document.getElementById("atkSaveButtonWrapper").classList.add("d-none");
+        document.getElementById("atkContinueWrapper").classList.add("d-none");
+
+        clearDraft();
+
+        document.querySelector('input[name="employee_name"]').focus();
+    }
+
+    document.getElementById("atkCancelBtn").addEventListener("click", function () {
+        var confirmModal = new bootstrap.Modal(document.getElementById("atkCancelConfirmModal"));
+        confirmModal.show();
+    });
+
+    document.getElementById("atkCancelConfirmYesBtn").addEventListener("click", function () {
+        var modalEl = document.getElementById("atkCancelConfirmModal");
+        var instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        instance.hide();
+        resetAtkForm();
+    });
+
+    document.querySelector('input[name="employee_name"]').addEventListener(
+        "input",
+        updateContinueButtonVisibility
+    );
+
+    function startDrawing(event) {
+        var point = getPoint(event);
+        drawing = true;
+        hasDrawing = true;
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+        hidePlaceholder();
+    }
+
+    function draw(event) {
+        if (!drawing) { return; }
+        var point = getPoint(event);
+        ctx.lineTo(point.x, point.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+    }
+
+    function stopDrawing() {
+        if (!drawing) { return; }
+        drawing = false;
+        saveToHidden();
+        updateContinueButtonVisibility();
+        saveDraft();
+    }
+
+    window.clearSignature = function () {
+        var rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        hasDrawing = false;
+        document.getElementById("signature").value = "";
+        showPlaceholder();
+        setStatus("{{ _('Signature deleted.') }}", false);
+        updateContinueButtonVisibility();
+        saveDraft();
+    };
+
+    canvas.addEventListener("mousedown", startDrawing);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", stopDrawing);
+    canvas.addEventListener("mouseleave", stopDrawing);
+    canvas.addEventListener("touchstart", function (e) { e.preventDefault(); startDrawing(e); }, { passive: false });
+    canvas.addEventListener("touchmove", function (e) { e.preventDefault(); draw(e); }, { passive: false });
+    canvas.addEventListener("touchend", function (e) { e.preventDefault(); stopDrawing(); }, { passive: false });
+
+    document.addEventListener("DOMContentLoaded", resizeCanvas);
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    document.getElementById("atkPickupForm").addEventListener("submit", function () {
+        if (hasDrawing) { saveToHidden(); }
+        clearDraft();
+    });
+
+    // Ketik nama atau ubah qty (mobile/desktop, termasuk tombol +/-)
+    // langsung menyimpan ulang draft supaya tidak hilang kalau
+    // halaman di-refresh tidak sengaja.
+    document.getElementById("atkPickupForm").addEventListener("input", function (event) {
+        if (event.target.name === "employee_name" || event.target.classList.contains("atk-qty-input")) {
+            saveDraft();
+        }
+    });
+
+    // Tabel desktop dan kartu mobile menampilkan barang yang sama,
+    // tapi cuma kartu mobile yang punya input ber-"name" asli - input
+    // di tabel desktop (data-mirror-target) cuma disinkronkan ke situ,
+    // supaya tidak ada 2 field dengan name sama yang ikut ter-submit.
+    document.querySelectorAll("[data-mirror-target]").forEach(function (mirrorInput) {
+        mirrorInput.addEventListener("input", function () {
+            var real = document.querySelector(
+                '[name="' + this.dataset.mirrorTarget + '"]'
+            );
+            if (real) {
+                real.value = this.value;
+            }
+        });
+    });
+
+    // Tombol +/- di kartu mobile (model e-commerce) langsung mengubah
+    // input qty asli di sebelahnya, lalu memicu event "input" supaya
+    // tetap tersinkron ke tabel desktop.
+    document.querySelectorAll(".atk-qty-stepper").forEach(function (stepper) {
+        var input = stepper.querySelector(".atk-qty-input");
+        var dec = stepper.querySelector(".atk-qty-dec");
+        var inc = stepper.querySelector(".atk-qty-inc");
+
+        function step(delta) {
+            var max = input.max !== "" ? parseFloat(input.max) : null;
+            var current = parseFloat(input.value) || 0;
+            var next = current + delta;
+            if (next < 0) { next = 0; }
+            if (max !== null && next > max) { next = max; }
+            input.value = next;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+
+        dec.addEventListener("click", function () { step(-1); });
+        inc.addEventListener("click", function () { step(1); });
+    });
+
+    // Zoom foto barang (klik thumbnail kartu mobile) - satu modal
+    // dipakai bareng, isinya diganti sesuai thumbnail yang diklik.
+    var photoModal = document.getElementById("atkPhotoModal");
+    if (photoModal) {
+        photoModal.addEventListener("show.bs.modal", function (event) {
+            var trigger = event.relatedTarget;
+            if (!trigger) { return; }
+            photoModal.querySelector("#atkPhotoModalImage").src = trigger.getAttribute("data-photo-url");
+            photoModal.querySelector("#atkPhotoModalLabel").textContent = trigger.getAttribute("data-asset-name");
+        });
+
+        // Backdrop bawaan Bootstrap cuma menggelapkan - tandai backdrop
+        // modal ini saja (bukan backdrop modal lain di halaman ini,
+        // misalnya modal konfirmasi Cancel) supaya area sekitar foto
+        // ikut blur begitu modalnya tampil.
+        photoModal.addEventListener("shown.bs.modal", function () {
+            var backdrops = document.querySelectorAll(".modal-backdrop");
+            var lastBackdrop = backdrops[backdrops.length - 1];
+            if (lastBackdrop) {
+                lastBackdrop.classList.add("atk-photo-modal-backdrop");
+            }
+        });
+    }
+
+    var search = document.getElementById("atkPickerSearch");
+    search.addEventListener("input", function () {
+        var q = search.value.trim().toLowerCase();
+        document.querySelectorAll(".atk-picker-item").forEach(function (row) {
+            row.classList.toggle("d-none", Boolean(q) && row.getAttribute("data-search").indexOf(q) === -1);
+        });
+    });
+
+    var scannedId = {{ scanned_category_id|tojson if scanned_category_id else 'null' }};
+
+    function scrollToScannedCategory() {
+
+        if (!scannedId) { return; }
+
+        // querySelectorAll, bukan querySelector tunggal - kartu mobile
+        // dirender lebih dulu di DOM daripada baris tabel desktop, jadi
+        // kalau cuma ambil match pertama bisa saja itu kartu yang lagi
+        // disembunyikan (d-lg-none) di layar desktop dan scrollIntoView
+        // jadi tidak berefek. scrollIntoView di elemen display:none
+        // aman/no-op, jadi aman dipanggil ke semua match sekaligus.
+        document.querySelectorAll(
+            '.atk-picker-item[data-category-id="' + scannedId + '"]'
+        ).forEach(function (el) {
+            el.scrollIntoView({ block: "center" });
+        });
+    }
+
+    // Pulihkan draft (nama, TTD, qty, status reveal) kalau ada sisa
+    // dari sebelum halaman di-refresh - lalu tetap cek ulang visibilitas
+    // tombol "Continue" (juga menutupi kasus browser form-restore
+    // bawaan kalau tidak ada draft tersimpan).
+    function restoreDraft() {
+
+        var raw;
+        try {
+            raw = sessionStorage.getItem(DRAFT_KEY);
+        } catch (e) {
+            raw = null;
+        }
+
+        if (!raw) {
+            updateContinueButtonVisibility();
+            return;
+        }
+
+        var draft;
+        try {
+            draft = JSON.parse(raw);
+        } catch (e) {
+            updateContinueButtonVisibility();
+            return;
+        }
+
+        if (draft.employeeName) {
+            document.querySelector('input[name="employee_name"]').value = draft.employeeName;
+        }
+
+        Object.keys(draft.qty || {}).forEach(function (assetId) {
+            var val = draft.qty[assetId];
+            var realInput = document.querySelector('[name="qty_' + assetId + '"]');
+            if (realInput) { realInput.value = val; }
+            var mirrorInput = document.querySelector('[data-mirror-target="qty_' + assetId + '"]');
+            if (mirrorInput) { mirrorInput.value = val; }
+        });
+
+        if (draft.itemsRevealed) {
+            revealItems(true);
+        }
+
+        if (draft.signature) {
+            var img = new Image();
+            img.onload = function () {
+                var rect = canvas.getBoundingClientRect();
+                ctx.drawImage(img, 0, 0, rect.width, rect.height);
+                hasDrawing = true;
+                document.getElementById("signature").value = draft.signature;
+                hidePlaceholder();
+                setStatus("{{ _('Signature saved.') }}", true);
+                updateContinueButtonVisibility();
+            };
+            img.src = draft.signature;
+        }
+
+        updateContinueButtonVisibility();
+    }
+
+    restoreDraft();
+})();
+</script>
+
+{% endblock %}

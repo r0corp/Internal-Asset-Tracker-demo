@@ -1,0 +1,2333 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ _('Add Asset') }} - {{ app_setting.app_name }}
+{% endblock %}
+
+
+{% block content %}
+
+<style>
+    /* Location/Department dipasangkan 1 baris (col-6), tapi untuk
+       kategori yang cuma menampilkan salah satunya saja, JS menambah
+       class ini supaya field yang tampil melebar penuh (lihat
+       applyFieldTemplate()). */
+    .form-field-row-solo {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Jarak antar baris field (mis. baris Asset Tag/Name ke baris
+       Category/Brand di bawahnya) - supaya tidak berdempetan begitu
+       field-nya wrap ke baris baru di layar sempit/kolom setengah.
+       --bs-gutter-y dimatikan supaya cuma margin-bottom di bawah ini
+       yang mengatur jarak vertikal - kalau tidak, field yang wrap di
+       DALAM satu .row.g-3 yang sama (mis. Category/Brand ke Stock/
+       Unit) dapat jarak dobel (gutter-y + margin-bottom), sedangkan
+       field yang berada di .row.g-3 terpisah (mis. Asset Tag/Name ke
+       Category/Brand) cuma dapat margin-bottom saja - bikin jaraknya
+       tidak rata/acuannya beda-beda. */
+    .row.g-3 {
+        --bs-gutter-y: 0;
+    }
+
+    .form-field-row {
+        margin-bottom: 1.1rem;
+    }
+
+    /* Paksa SEMUA label selalu di atas input-nya (bukan di samping) -
+       .form-field-row aslinya cuma pindah ke bawah kalau kolomnya
+       sempit (lihat style.css), jadi di kolom yang cukup lebar (mis.
+       layar besar) label & input malah sejajar sampingan, dan kalau
+       labelnya panjang (mis. "Phone / WhatsApp Number") teksnya
+       meluber nabrak kolom sebelah karena white-space:nowrap. Dengan
+       dipaksa flex-direction:column, perilaku ini jadi konsisten di
+       semua lebar layar, dan label panjang aman cuma turun ke baris
+       kedua (bukan meluber keluar). */
+    .form-field-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .form-field-row>.form-field-label {
+        flex: 0 0 auto;
+        white-space: normal;
+        margin-bottom: 0.4rem;
+    }
+
+    .form-field-row>.form-control,
+    .form-field-row>.form-select,
+    .form-field-row>.input-group,
+    .form-field-row>.btn {
+        flex: 0 0 auto;
+        min-width: 0;
+        width: 100%;
+    }
+
+    /* .asset-type-tab-content punya mb-3 bawaan - dimatikan supaya
+       tidak menambah jarak ekstra di antara baris field terakhir tiap
+       kategori (mis. Per Unit) dengan baris field bersama di bawahnya
+       (PIC), di luar margin-bottom .form-field-row di atas. */
+    .asset-type-tab-content {
+        margin-bottom: 0 !important;
+    }
+
+    /* Field Description - label di atas textarea-nya (seperti field
+       lain), bukan di samping seperti .form-field-row biasa (yang
+       untuk textarea lebar begini masih cukup ruang buat sejajar). */
+    .form-field-row-stacked {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .form-field-row-stacked > .form-field-label {
+        margin-bottom: 0.4rem;
+    }
+
+    /* ============================================================
+   CARD
+   ============================================================ */
+
+    .asset-form-card {
+        border: 0;
+
+        border-radius: 12px;
+
+        box-shadow:
+            0 2px 10px rgba(0, 0, 0, 0.07);
+
+        overflow: hidden;
+    }
+
+
+    .asset-form-card .card-header {
+        background: #ffffff;
+
+        border-bottom: 1px solid #eeeeee;
+
+        padding: 18px 20px;
+    }
+
+
+    .asset-form-card .card-body {
+        padding: 25px;
+    }
+
+
+    /* ============================================================
+   SECTION
+   ============================================================ */
+
+    .form-section {
+        margin-bottom: 30px;
+    }
+
+
+    .form-section:last-child {
+        margin-bottom: 0;
+    }
+
+
+    .form-section-title {
+        display: flex;
+
+        align-items: center;
+
+        gap: 8px;
+
+        font-size: 16px;
+
+        font-weight: 700;
+
+        margin-bottom: 18px;
+
+        padding-bottom: 10px;
+
+        border-bottom: 1px solid #eeeeee;
+    }
+
+
+    /* ============================================================
+   LABEL
+   ============================================================ */
+
+    .form-label {
+        font-weight: 600;
+
+        font-size: 13px;
+    }
+
+
+    .required-mark {
+        color: #dc3545;
+    }
+
+
+    /* ============================================================
+   PHOTO UPLOAD (sama dengan galeri foto di Detail/Edit Asset)
+   ============================================================ */
+
+    .asset-photo-box {
+        position: relative;
+
+        width: 100%;
+
+        max-width: 380px;
+
+        height: 260px;
+
+        margin: 0 auto;
+
+        border: 1px solid #e9ecef;
+
+        border-radius: 14px;
+
+        background: #f8f9fa;
+
+        overflow: hidden;
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .asset-photo-box.asset-photo-box-compact {
+        max-width: 180px;
+
+        height: 130px;
+    }
+
+    .asset-photo-box-compact .asset-photo-empty i {
+        font-size: 30px;
+
+        margin-bottom: 4px;
+    }
+
+    .asset-photo-box-compact .asset-photo-empty {
+        font-size: 12px;
+    }
+
+    .asset-photo-gallery-compact {
+        max-width: 180px;
+    }
+
+    .asset-photo-box-uploadable {
+        cursor: pointer;
+    }
+
+    .asset-photo-box-uploadable:hover {
+        border-color: #0d6efd;
+    }
+
+    .asset-photo-hero-delete {
+        position: absolute;
+
+        top: 6px;
+
+        right: 6px;
+
+        width: 26px;
+
+        height: 26px;
+
+        border: none;
+
+        border-radius: 50%;
+
+        background: rgba(0, 0, 0, 0.55);
+
+        color: #fff;
+
+        font-size: 13px;
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        padding: 0;
+    }
+
+    .asset-photo-hero-delete:hover {
+        background: #dc3545;
+    }
+
+    .asset-photo-camera-btn {
+        position: absolute;
+        bottom: 6px;
+        right: 6px;
+        width: 30px;
+        height: 30px;
+        border: none;
+        border-radius: 50%;
+        background: #0d6efd;
+        color: #fff;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    }
+
+    .asset-photo-camera-btn:hover {
+        background: #0a58ca;
+    }
+
+    .asset-photo-box img {
+        width: 100%;
+
+        height: 100%;
+
+        object-fit: contain;
+
+        display: block;
+    }
+
+    .asset-photo-empty {
+        color: #adb5bd;
+
+        text-align: center;
+    }
+
+    .asset-photo-empty i {
+        display: block;
+
+        font-size: 52px;
+
+        margin-bottom: 8px;
+    }
+
+    .asset-photo-gallery {
+        max-width: 380px;
+
+        margin: 12px auto 0;
+    }
+
+    .asset-photo-thumb-strip {
+        display: flex;
+
+        flex-wrap: wrap;
+
+        gap: 8px;
+    }
+
+    .asset-photo-thumb {
+        position: relative;
+
+        width: 64px;
+
+        height: 64px;
+
+        border-radius: 8px;
+
+        overflow: hidden;
+
+        border: 2px solid #e9ecef;
+
+        background: #f8f9fa;
+    }
+
+    .asset-photo-thumb.is-cover {
+        border-color: #0d6efd;
+    }
+
+    .asset-photo-thumb-img {
+        width: 100%;
+
+        height: 100%;
+
+        object-fit: cover;
+
+        display: block;
+
+        cursor: zoom-in;
+    }
+
+    .asset-photo-thumb-cover-badge {
+        display: none;
+
+        position: absolute;
+
+        top: 2px;
+
+        left: 2px;
+
+        font-size: 10px;
+
+        color: #ffc107;
+
+        text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+    }
+
+    .asset-photo-thumb.is-cover .asset-photo-thumb-cover-badge {
+        display: block;
+    }
+
+    .asset-photo-thumb-actions {
+        position: absolute;
+
+        inset: 0;
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        gap: 4px;
+
+        background: rgba(0, 0, 0, 0.45);
+
+        opacity: 0;
+
+        transition: opacity 0.15s ease;
+    }
+
+    .asset-photo-thumb:hover .asset-photo-thumb-actions {
+        opacity: 1;
+    }
+
+    .asset-photo-thumb-actions button {
+        width: 24px;
+
+        height: 24px;
+
+        border: none;
+
+        border-radius: 6px;
+
+        background: rgba(255, 255, 255, 0.9);
+
+        color: #212529;
+
+        font-size: 12px;
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        padding: 0;
+    }
+
+    .asset-photo-thumb-actions .btn-thumb-cover:hover {
+        color: #ffc107;
+    }
+
+    .asset-photo-thumb-actions .btn-thumb-delete:hover {
+        color: #dc3545;
+    }
+
+    .asset-photo-thumb-add {
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        cursor: pointer;
+
+        color: #6c757d;
+
+        font-size: 20px;
+
+        border-style: dashed;
+    }
+
+    .asset-photo-thumb-add:hover {
+        border-color: #0d6efd;
+
+        color: #0d6efd;
+    }
+
+    .asset-photo-gallery-help {
+        margin-top: 6px;
+
+        font-size: 11px;
+
+        color: #adb5bd;
+    }
+
+    .asset-photo-clickable {
+        cursor: zoom-in;
+
+        transition:
+            transform 0.2s ease,
+            opacity 0.2s ease;
+    }
+
+    .asset-photo-clickable:hover {
+        opacity: 0.92;
+
+        transform: scale(1.015);
+    }
+
+    .photo-lightbox-content {
+        position: relative;
+        overflow: hidden;
+        cursor: zoom-out;
+        background-color: #000;
+    }
+
+    .photo-lightbox-content::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #0a4fb0 0%, #0d6efd 35%, #6ea8fe 50%, #0d6efd 65%, #0a4fb0 100%);
+        z-index: 1;
+    }
+
+    [data-bs-theme="dark"] .photo-lightbox-content::before {
+        background: linear-gradient(90deg, #1e40af 0%, #2563eb 35%, #60a5fa 50%, #2563eb 65%, #1e40af 100%);
+    }
+
+    .photo-lightbox-image {
+        display: block;
+        width: 100%;
+        max-height: 80vh;
+        object-fit: contain;
+    }
+
+    .photo-lightbox-backdrop {
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+    }
+
+    @media (max-width: 767px) {
+        .asset-photo-box {
+            height: 230px;
+        }
+    }
+
+
+    /* ============================================================
+   FOOTER
+   ============================================================ */
+
+    .form-actions {
+        display: flex;
+
+        justify-content: space-between;
+
+        align-items: center;
+
+        gap: 10px;
+
+        padding-top: 20px;
+
+        margin-top: 25px;
+
+        border-top: 1px solid #eeeeee;
+    }
+
+
+    /* ============================================================
+   ASSET TYPE TABS
+   ============================================================ */
+
+    .asset-type-tabs {
+        border-bottom: 2px solid var(--bs-primary);
+    }
+
+
+    .asset-type-tabs .nav-link {
+        font-size: 13px;
+
+        font-weight: 600;
+
+        color: var(--bs-secondary-color);
+
+        background: transparent;
+
+        border: 1px solid transparent;
+
+        border-top-left-radius: 6px;
+
+        border-top-right-radius: 6px;
+
+        margin-bottom: -2px;
+    }
+
+
+    .asset-type-tabs .nav-link.active {
+        color: var(--bs-primary);
+
+        background: var(--bs-body-bg);
+
+        border-color: var(--bs-primary) var(--bs-primary) var(--bs-body-bg);
+    }
+
+
+    /* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+    @media (max-width: 768px) {
+
+        .asset-form-card .card-body {
+            padding: 18px;
+        }
+
+
+        .form-actions {
+            flex-direction: column-reverse;
+
+            align-items: stretch;
+        }
+
+
+        .form-actions .btn {
+            width: 100%;
+        }
+
+    }
+</style>
+
+
+<div class="container-fluid asset-form-page">
+
+
+    <!-- ========================================================
+         HEADER
+         ======================================================== -->
+
+    <div class="page-header-card">
+
+        <div class="page-header-row">
+
+            <div class="page-header-left">
+
+                <div class="page-header-icon">
+                    <i class="bi bi-plus-circle"></i>
+                </div>
+
+                <div>
+
+                    <h3 class="page-header-title">
+                        {{ _('Add Asset') }}
+                    </h3>
+
+                    <div class="page-header-subtitle">
+                        {{ _('Add a new asset to Asset Tracker') }}
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="page-header-actions">
+
+                <a href="{{ url_for('main.assets') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1"></i>
+                    {{ _('Back') }}
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ========================================================
+         FORM
+         ======================================================== -->
+
+    <div class="card asset-form-card">
+
+
+        <div class="card-header">
+
+            <strong>
+
+                <i class="bi bi-box-seam me-1"></i>
+
+                {{ _('Asset Information') }}
+
+            </strong>
+
+        </div>
+
+
+        <div class="card-body">
+
+
+            <form method="POST" enctype="multipart/form-data" id="assetForm" style="--form-field-label-width: 100px;">
+
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% if locked_tipe %}
+                <input type="hidden" name="tipe" value="{{ locked_tipe }}">
+                {% endif %}
+
+
+                <!-- ==================================================
+                     INFORMASI UTAMA
+                     ================================================== -->
+
+                <div class="form-section">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-info-circle"></i>
+
+                        {{ _('Main Information') }}
+
+                    </div>
+
+
+
+                    <!-- ASSET TYPE TABS -->
+
+                    {% set allowed_tpl = allowed_category_templates %}
+                    {% set first_allowed = (locked_tipe if locked_tipe else (allowed_tpl[0] if allowed_tpl else 'pc_laptop')) %}
+
+                    <ul class="nav nav-tabs asset-type-tabs mb-3 {{ 'd-none' if locked_tipe }}" role="tablist">
+
+                        {% if not allowed_tpl or 'pc_laptop' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'pc_laptop' }}" data-bs-toggle="tab" data-bs-target="#type-pc_laptop"
+                                data-template="pc_laptop" type="button" role="tab">
+                                <i class="bi bi-laptop me-1"></i>{{ _('PC / Laptop') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'ponsel' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'ponsel' }}" data-bs-toggle="tab" data-bs-target="#type-ponsel"
+                                data-template="ponsel" type="button" role="tab">
+                                <i class="bi bi-phone me-1"></i>{{ _('Phone') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'server' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'server' }}" data-bs-toggle="tab" data-bs-target="#type-server"
+                                data-template="server" type="button" role="tab">
+                                <i class="bi bi-hdd-network me-1"></i>{{ _('Server & Network') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'non_pc' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'non_pc' }}" data-bs-toggle="tab" data-bs-target="#type-non_pc"
+                                data-template="non_pc" type="button" role="tab">
+                                <i class="bi bi-display me-1"></i>{{ _('Other Electronics') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'elektronik_interior' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'elektronik_interior' }}" data-bs-toggle="tab" data-bs-target="#type-elektronik_interior"
+                                data-template="elektronik_interior" type="button" role="tab">
+                                <i class="bi bi-house me-1"></i>{{ _('Interior Electronics') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'elektronik_exterior' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'elektronik_exterior' }}" data-bs-toggle="tab" data-bs-target="#type-elektronik_exterior"
+                                data-template="elektronik_exterior" type="button" role="tab">
+                                <i class="bi bi-lightning-charge me-1"></i>{{ _('Exterior Electronics') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'kendaraan' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'kendaraan' }}" data-bs-toggle="tab" data-bs-target="#type-kendaraan"
+                                data-template="kendaraan" type="button" role="tab">
+                                <i class="bi bi-car-front me-1"></i>{{ _('Vehicle') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'furniture' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'furniture' }}" data-bs-toggle="tab" data-bs-target="#type-furniture"
+                                data-template="furniture" type="button" role="tab">
+                                <i class="bi bi-box2 me-1"></i>{{ _('Furniture') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'tools_mekanik' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'tools_mekanik' }}" data-bs-toggle="tab" data-bs-target="#type-tools_mekanik"
+                                data-template="tools_mekanik" type="button" role="tab">
+                                <i class="bi bi-tools me-1"></i>{{ _('Mechanical Tools') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'atk' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'atk' }}" data-bs-toggle="tab" data-bs-target="#type-atk"
+                                data-template="atk" type="button" role="tab">
+                                <i class="bi bi-pencil me-1"></i>{{ _('ATK') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'pantry' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'pantry' }}" data-bs-toggle="tab" data-bs-target="#type-pantry"
+                                data-template="pantry" type="button" role="tab">
+                                <i class="bi bi-cup-hot me-1"></i>{{ _('Pantry') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'tools_pantry' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'tools_pantry' }}" data-bs-toggle="tab" data-bs-target="#type-tools_pantry"
+                                data-template="tools_pantry" type="button" role="tab">
+                                <i class="bi bi-bucket me-1"></i>{{ _('Pantry Tools') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'showcase' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'showcase' }}" data-bs-toggle="tab" data-bs-target="#type-showcase"
+                                data-template="showcase" type="button" role="tab">
+                                <i class="bi bi-shop-window me-1"></i>{{ _('Showcase') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'gudang_event' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if first_allowed == 'gudang_event' }}" data-bs-toggle="tab" data-bs-target="#type-gudang_event"
+                                data-template="gudang_event" type="button" role="tab">
+                                <i class="bi bi-boxes me-1"></i>{{ _('Event Stock') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                    </ul>
+
+
+
+                    <div class="row g-3 align-items-start">
+
+
+                        <!-- ASSET TAG -->
+
+                        <div class="col-6 form-field-row">
+
+                            <label for="asset_tag" class="form-label form-field-label">
+
+                                {{ _('Asset Tag') }}
+
+                                <span class="required-mark">
+                                    *
+                                </span>
+
+                            </label>
+
+
+                            <input type="text" class="form-control" id="asset_tag" name="asset_tag"
+                                placeholder="{{ _('Example: AST-001') }}" maxlength="30" autocomplete="off">
+
+                        </div>
+
+
+
+                        <!-- ASSET NAME -->
+
+                        <div class="col-6 form-field-row">
+
+                            <label for="asset_name" class="form-label form-field-label">
+
+                                {{ _('Asset Name') }}
+
+                                <span class="required-mark">
+                                    *
+                                </span>
+
+                            </label>
+
+
+                            <input type="text" class="form-control" id="asset_name" name="asset_name"
+                                placeholder="{{ _('Example: Dell Latitude Laptop') }}" maxlength="100" required>
+
+                        </div>
+
+
+
+                    </div>
+
+
+                    <div class="tab-content asset-type-tab-content mb-3">
+
+
+                        <!-- PC / LAPTOP -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'pc_laptop' }}" id="type-pc_laptop" data-template-pane="pc_laptop">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "pc_laptop" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Dell') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        placeholder="{{ _('Example: Latitude 5440') }}" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Serial Number') }}</label>
+                                    <input type="text" class="form-control" name="serial_number"
+                                        placeholder="{{ _('Serial Number') }}" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Phone/WhatsApp') }}</label>
+                                    <input type="text" class="form-control" name="phone_number"
+                                        placeholder="{{ _('Example: 081234567890') }}" maxlength="30">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Office Email') }}</label>
+                                    <input type="email" class="form-control" name="office_email"
+                                        placeholder="{{ _('Example: name@company.com') }}" maxlength="150">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Personal Email') }}</label>
+                                    <input type="email" class="form-control" name="personal_email"
+                                        placeholder="{{ _('Example: name@gmail.com') }}" maxlength="150">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- PHONE -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'ponsel' }}" id="type-ponsel" data-template-pane="ponsel">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "ponsel" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Samsung') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        placeholder="{{ _('Example: Galaxy A54') }}" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Serial Number') }}</label>
+                                    <input type="text" class="form-control" name="serial_number"
+                                        placeholder="{{ _('Example: IMEI') }}" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Phone/WhatsApp') }}</label>
+                                    <input type="text" class="form-control" name="phone_number"
+                                        placeholder="{{ _('Example: 081234567890') }}" maxlength="30">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Office Email') }}</label>
+                                    <input type="email" class="form-control" name="office_email"
+                                        placeholder="{{ _('Example: name@company.com') }}" maxlength="150">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Personal Email') }}</label>
+                                    <input type="email" class="form-control" name="personal_email"
+                                        placeholder="{{ _('Example: name@gmail.com') }}" maxlength="150">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- SERVER & NETWORK -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'server' }}" id="type-server" data-template-pane="server">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "server" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Cisco') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Serial Number') }}</label>
+                                    <input type="text" class="form-control" name="serial_number" maxlength="100">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- OTHER ELECTRONICS -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'non_pc' }}" id="type-non_pc" data-template-pane="non_pc">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "non_pc" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Serial Number') }}</label>
+                                    <input type="text" class="form-control" name="serial_number" maxlength="100">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- INTERIOR ELECTRONICS -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'elektronik_interior' }}" id="type-elektronik_interior" data-template-pane="elektronik_interior">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "elektronik_interior" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Daikin') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Specification / Capacity') }}</label>
+                                    <input type="text" class="form-control" name="specification"
+                                        placeholder="{{ _('Example: 1 PK Split') }}" maxlength="150">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- EXTERIOR ELECTRONICS -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'elektronik_exterior' }}" id="type-elektronik_exterior" data-template-pane="elektronik_exterior">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "elektronik_exterior" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Honda') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Specification / Capacity') }}</label>
+                                    <input type="text" class="form-control" name="specification"
+                                        placeholder="{{ _('Example: 5000 Watt') }}" maxlength="150">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- VEHICLE -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'kendaraan' }}" id="type-kendaraan" data-template-pane="kendaraan">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "kendaraan" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Toyota') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        placeholder="{{ _('Example: Avanza') }}" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('License Plate Number') }}</label>
+                                    <input type="text" class="form-control" name="plat_nomor"
+                                        placeholder="{{ _('Example: B 1234 XYZ') }}" maxlength="20">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Tax (STNK) Due Date') }}</label>
+                                    <input type="date" class="form-control" name="masa_pajak">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Insurance') }}</label>
+                                    <input type="text" class="form-control" name="asuransi"
+                                        placeholder="{{ _('Example: Astra Insurance') }}" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Policy Number') }}</label>
+                                    <input type="text" class="form-control" name="nomor_polis"
+                                        placeholder="{{ _('Example: POL-123456') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Insurance Due Date') }}</label>
+                                    <input type="date" class="form-control" name="masa_asuransi">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('KIR Due Date') }}</label>
+                                    <input type="date" class="form-control" name="masa_kir">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Color') }}</label>
+                                    <input type="text" class="form-control" name="warna"
+                                        placeholder="{{ _('Example: White') }}" maxlength="30">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Year Made') }}</label>
+                                    <input type="number" class="form-control" name="tahun_buat" min="1950" max="2100">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- FURNITURE -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'furniture' }}" id="type-furniture" data-template-pane="furniture">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "furniture" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Informa') }}" maxlength="50">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- MECHANICAL TOOLS -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'tools_mekanik' }}" id="type-tools_mekanik" data-template-pane="tools_mekanik">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "tools_mekanik" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Bosch') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model" maxlength="100">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- ATK -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'atk' }}" id="type-atk" data-template-pane="atk">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "atk" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        placeholder="{{ _('Example: Pilot') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        placeholder="{{ _('Example: PCS') }}" maxlength="20">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- PANTRY -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'pantry' }}" id="type-pantry" data-template-pane="pantry">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "pantry" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        placeholder="{{ _('Example: PCS') }}" maxlength="20">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- PANTRY TOOLS -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'tools_pantry' }}" id="type-tools_pantry" data-template-pane="tools_pantry">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "tools_pantry" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        placeholder="{{ _('Example: PCS') }}" maxlength="20">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- SHOWCASE -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'showcase' }}" id="type-showcase" data-template-pane="showcase">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "showcase" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        placeholder="{{ _('Example: PCS') }}" maxlength="20">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Selling Price') }}</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">Rp</span>
+                                        <input type="number" class="form-control" name="selling_price" min="0" step="0.01">
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- EVENT WAREHOUSE STOCK -->
+
+                        <div class="tab-pane fade {{ 'show active' if first_allowed == 'gudang_event' }}" id="type-gudang_event" data-template-pane="gudang_event">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('-- Select Category --') }}</option>
+                                        {% for category in categories if category.field_template == "gudang_event" %}
+                                        <option value="{{ category.name }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        placeholder="{{ _('Example: PCS') }}" maxlength="20">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+
+                    <div class="row g-3">
+
+                        <!-- PIC -->
+
+                        <div class="col-6 form-field-row">
+
+                            <label for="pic" class="form-label form-field-label">
+
+                                {{ _('PIC') }}
+
+                            </label>
+
+
+                            <input type="text" class="form-control" id="pic" name="pic" placeholder="{{ _('PIC Name') }}"
+                                maxlength="100">
+
+                        </div>
+
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- ==================================================
+                     FOTO ASSET
+                     ================================================== -->
+
+                <div class="form-section">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-camera"></i>
+
+                        {{ _('Asset Photo') }}
+
+                    </div>
+
+
+                    <div class="asset-photo-box" id="addPhotoHeroBox">
+                        <img id="addPhotoHero" alt="" class="asset-photo-clickable d-none"
+                            data-bs-toggle="modal" data-bs-target="#addPhotoModal" />
+
+                        <div class="asset-photo-empty" id="addPhotoEmpty">
+                            <i class="bi bi-image"></i>
+                            <div>{{ _('No asset photo yet') }}</div>
+                        </div>
+
+                        <button type="button" class="asset-photo-hero-delete d-none" id="addPhotoHeroDelete"
+                            title="{{ _('Delete photo') }}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+
+                        <button type="button" class="asset-photo-camera-btn" id="addPhotoCameraBtn"
+                            title="{{ _('Take photo') }}">
+                            <i class="bi bi-camera-fill"></i>
+                        </button>
+
+                        <input type="file" id="addPhotoCameraInput" accept="image/*" capture="environment"
+                            class="d-none">
+                    </div>
+
+                    <div class="asset-photo-gallery">
+                        <div class="asset-photo-thumb-strip" id="addPhotoThumbStrip">
+                            <label class="asset-photo-thumb asset-photo-thumb-add" title="{{ _('Add photo') }}">
+                                <i class="bi bi-plus-lg"></i>
+
+                                <input type="file" id="photos" name="photos" multiple
+                                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" class="d-none">
+                            </label>
+                        </div>
+
+                        <div class="asset-photo-gallery-help" id="addPhotoGalleryHelp">
+                            {{ _('Allowed formats: JPG, JPEG, PNG, WEBP. Click + to add more photos. Hover a photo for cover/remove options.') }}
+                        </div>
+                    </div>
+
+                </div>
+
+
+
+                <!-- ==================================================
+                     LOKASI & ORGANISASI
+                     ================================================== -->
+
+                <div class="form-section">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-geo-alt"></i>
+
+                        {{ _('Location & Organization') }}
+
+                    </div>
+
+
+
+                    <div class="row g-3">
+
+
+                        <!-- LOCATION -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,furniture,tools_mekanik,tools_pantry,showcase,gudang_event">
+
+                            <label for="location" class="form-label form-field-label">
+
+                                {{ _('Location') }}
+
+                            </label>
+
+
+                            <select class="form-select" id="location" name="location">
+
+                                <option value="">
+                                    {{ _('-- Select Location --') }}
+                                </option>
+
+
+                                {% for location in locations %}
+
+                                <option
+                                    value="{{ location.name }}"
+                                    {% if location.name == 'Gudang' %}selected{% endif %}
+                                >
+
+                                    {{ location.name }}
+
+                                </option>
+
+                                {% endfor %}
+
+                            </select>
+
+                        </div>
+
+
+
+                        <!-- DEPARTMENT -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,furniture,tools_mekanik,pantry,tools_pantry,showcase,gudang_event">
+
+                            <label for="department" class="form-label form-field-label">
+
+                                {{ _('Department') }}
+
+                            </label>
+
+
+                            <select class="form-select" id="department" name="department">
+
+                                <option value="">
+                                    {{ _('-- Select Department --') }}
+                                </option>
+
+
+                                {% for department in departments %}
+
+                                <option value="{{ department.name }}">
+
+                                    {{ department.name }}
+
+                                </option>
+
+                                {% endfor %}
+
+                            </select>
+
+                        </div>
+
+
+
+                        <!-- STATUS -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,furniture,tools_mekanik,atk,pantry">
+
+                            <label for="status" class="form-label form-field-label">
+
+                                {{ _('Status') }}
+
+                            </label>
+
+
+                            <select class="form-select" id="status" name="status">
+
+                                <option value="Active" selected>
+
+                                    {{ _('Active') }}
+
+                                </option>
+
+
+                                <option value="Maintenance">
+
+                                    {{ _('Maintenance') }}
+
+                                </option>
+
+
+                                <option value="Inactive">
+
+                                    {{ _('Inactive') }}
+
+                                </option>
+
+
+                                <option value="Lost">
+
+                                    {{ _('Lost') }}
+
+                                </option>
+
+
+                                <option value="Retired">
+
+                                    {{ _('Retired') }}
+
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- ==================================================
+                     PEMBELIAN
+                     ================================================== -->
+
+                <div class="form-section" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,tools_mekanik">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-receipt"></i>
+
+                        {{ _('Purchase Information') }}
+
+                    </div>
+
+
+
+                    <div class="row g-3">
+
+
+                        <!-- PURCHASE DATE -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,tools_mekanik">
+
+                            <label for="purchase_date" class="form-label form-field-label">
+
+                                {{ _('Purchase Date') }}
+
+                            </label>
+
+
+                            <input type="date" class="form-control" id="purchase_date" name="purchase_date">
+
+                        </div>
+
+
+
+                        <!-- PURCHASE PRICE -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,tools_mekanik">
+
+                            <label for="purchase_price" class="form-label form-field-label">
+
+                                {{ _('Purchase Price') }}
+
+                            </label>
+
+
+                            <div class="input-group">
+
+                                <span class="input-group-text">
+                                    Rp
+                                </span>
+
+
+                                <input type="number" class="form-control" id="purchase_price" name="purchase_price"
+                                    placeholder="0" min="0" step="0.01">
+
+                            </div>
+
+                        </div>
+
+
+
+                        <!-- VENDOR -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,tools_mekanik">
+
+                            <label for="vendor" class="form-label form-field-label">
+
+                                {{ _('Vendor') }}
+
+                            </label>
+
+
+                            <select class="form-select" id="vendor" name="vendor">
+
+                                <option value="">
+                                    {{ _('-- Select Vendor --') }}
+                                </option>
+
+
+                                {% for vendor in vendors %}
+
+                                <option value="{{ vendor.name }}">
+
+                                    {{ vendor.name }}
+
+                                </option>
+
+                                {% endfor %}
+
+                            </select>
+
+                        </div>
+
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- ==================================================
+                     DESKRIPSI
+                     ================================================== -->
+
+                <div class="form-section">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-card-text"></i>
+
+                        {{ _('Description') }}
+
+                    </div>
+
+
+                    <div class="form-field-row-stacked">
+
+                        <label for="description" class="form-label form-field-label">
+
+                            {{ _('Description') }}
+
+                        </label>
+
+
+                        <textarea class="form-control" id="description" name="description" rows="5"
+                            placeholder="{{ _('Enter notes or a description for this asset...') }}"></textarea>
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- ==================================================
+                     ACTION
+                     ================================================== -->
+
+                <div class="form-actions">
+
+
+                    <a href="{{ url_for('main.assets') }}" class="btn btn-outline-secondary">
+
+                        <i class="bi bi-x-lg me-1"></i>
+
+                        {{ _('Cancel') }}
+
+                    </a>
+
+
+                    <button type="submit" class="btn btn-primary" id="submitButton">
+
+                        <i class="bi bi-save me-1"></i>
+
+                        {{ _('Save Asset') }}
+
+                    </button>
+
+
+                </div>
+
+
+            </form>
+
+
+        </div>
+
+    </div>
+
+
+</div>
+
+
+
+<!-- ============================================================
+     DYNAMIC FIELDS BY CATEGORY (FIELD TEMPLATE)
+     ============================================================ -->
+
+<script>
+    function getActiveTypeTemplate() {
+
+        const activeTabButton = document.querySelector(
+            ".asset-type-tabs .nav-link.active"
+        );
+
+        return (
+            (activeTabButton && activeTabButton.dataset.template) ||
+            "pc_laptop"
+        );
+    }
+
+
+    function applyFieldTemplate(clearHidden) {
+
+        const template = getActiveTypeTemplate();
+
+        document.querySelectorAll("[data-tpl-fields]").forEach(
+            function (el) {
+
+                const allowed =
+                    el.dataset.tplFields.split(",");
+
+                const visible =
+                    allowed.indexOf(template) !== -1;
+
+                el.style.display = visible ? "" : "none";
+
+                if (!visible && clearHidden) {
+
+                    el.querySelectorAll(
+                        "input, select, textarea"
+                    ).forEach(function (field) {
+                        field.value = "";
+                    });
+
+                }
+            }
+        );
+
+        // Location & Department sengaja dipasangkan 1 baris (lihat
+        // "acuannya Asset Tag/Asset Name") - tapi untuk kategori yang
+        // cuma menampilkan salah satunya saja (mis. Pantry: Department
+        // tanpa Location), satu-satunya field yang tampil dilebarkan
+        // penuh supaya tidak ada ruang kosong menggantung di sampingnya.
+        const locationRow = document.getElementById("location");
+        const departmentRow = document.getElementById("department");
+
+        if (locationRow && departmentRow) {
+
+            const locationCol = locationRow.closest(".form-field-row");
+            const departmentCol = departmentRow.closest(".form-field-row");
+
+            const locationVisible = locationCol.style.display !== "none";
+            const departmentVisible = departmentCol.style.display !== "none";
+
+            const locationSolo = locationVisible && !departmentVisible;
+            const departmentSolo = departmentVisible && !locationVisible;
+
+            locationCol.classList.toggle("form-field-row-solo", locationSolo);
+            departmentCol.classList.toggle("form-field-row-solo", departmentSolo);
+
+        }
+    }
+
+
+    function syncTypeTabPanes() {
+
+        const template = getActiveTypeTemplate();
+
+        document.querySelectorAll("[data-template-pane]").forEach(
+            function (pane) {
+
+                const isActive =
+                    pane.dataset.templatePane === template;
+
+                pane.querySelectorAll(
+                    "input, select, textarea"
+                ).forEach(function (field) {
+                    field.disabled = !isActive;
+                });
+
+            }
+        );
+    }
+
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        function () {
+
+            syncTypeTabPanes();
+            applyFieldTemplate(false);
+
+            document.querySelectorAll(
+                ".asset-type-tabs button[data-bs-toggle='tab']"
+            ).forEach(function (tabButton) {
+
+                tabButton.addEventListener(
+                    "shown.bs.tab",
+                    function () {
+                        syncTypeTabPanes();
+                        applyFieldTemplate(true);
+
+                        if (window.updatePhotoWidgetMode) {
+                            window.updatePhotoWidgetMode();
+                        }
+                    }
+                );
+
+            });
+
+        }
+    );
+</script>
+
+
+<!-- ============================================================
+     MODAL FOTO ASSET - tanpa header/tombol close, klik di mana
+     saja di dalam modal (termasuk fotonya) langsung menutup, foto
+     mepet penuh ke tepi modal.
+     ============================================================ -->
+
+<div class="modal fade" id="addPhotoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content photo-lightbox-content" data-bs-dismiss="modal">
+            <img id="addPhotoModalImage" src="" alt="" class="photo-lightbox-image">
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+    var photoModal = document.getElementById("addPhotoModal");
+    if (!photoModal) { return; }
+    photoModal.addEventListener("shown.bs.modal", function () {
+        var backdrops = document.querySelectorAll(".modal-backdrop");
+        var lastBackdrop = backdrops[backdrops.length - 1];
+        if (lastBackdrop) {
+            lastBackdrop.classList.add("photo-lightbox-backdrop");
+        }
+    });
+})();
+</script>
+
+
+<!-- ============================================================
+     GALERI FOTO (LOKAL, SEBELUM ASSET DISIMPAN)
+     ============================================================ -->
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        const photoInput = document.getElementById("photos");
+        const thumbStrip = document.getElementById("addPhotoThumbStrip");
+        const addTile = thumbStrip.querySelector(".asset-photo-thumb-add");
+        const heroImg = document.getElementById("addPhotoHero");
+        const heroEmpty = document.getElementById("addPhotoEmpty");
+        const heroBox = document.getElementById("addPhotoHeroBox");
+        const heroDeleteBtn = document.getElementById("addPhotoHeroDelete");
+        const modalImage = document.getElementById("addPhotoModalImage");
+
+        if (!photoInput) {
+            return;
+        }
+
+        /*
+         * ATK (dan hanya ATK) cukup 1 foto saja - lihat
+         * _photo_gallery.html untuk alasan yang sama di Detail/Edit.
+         * Kategori di Tambah Asset bisa berpindah-pindah lewat tab,
+         * jadi mode ini dicek ulang tiap kali tab berganti.
+         */
+        function isSinglePhotoMode() {
+            return (
+                typeof getActiveTypeTemplate === "function" &&
+                ["atk", "pantry"].includes(getActiveTypeTemplate())
+            );
+        }
+
+        const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+        const maxSize = 5 * 1024 * 1024;
+
+        const LABEL_SET_COVER = "{{ _('Set as cover') }}";
+        const LABEL_DELETE = "{{ _('Delete photo') }}";
+        const LABEL_GALLERY_HELP = "{{ _('Allowed formats: JPG, JPEG, PNG, WEBP. Click + to add more photos. Hover a photo for cover/remove options.') }}";
+        const LABEL_SINGLE_PHOTO_HELP = "{{ _('Click to upload a photo. Once added, click it again to zoom in.') }}";
+        const galleryHelp = document.getElementById("addPhotoGalleryHelp");
+
+        /*
+         * Native <input type="file" multiple> menimpa pilihan tiap
+         * kali dialog dibuka ulang. Supaya user bisa klik "Choose
+         * Files" berkali-kali dan foto terkumpul (bukan ketimpa),
+         * daftar file disimpan di sini lalu input di-sinkronkan
+         * ulang via DataTransfer. File pertama di array = sampul.
+         */
+
+        let selectedFiles = [];
+        let previewUrls = [];
+
+        function syncInputFiles() {
+
+            const dataTransfer = new DataTransfer();
+
+            selectedFiles.forEach(function (file) {
+                dataTransfer.items.add(file);
+            });
+
+            photoInput.files = dataTransfer.files;
+        }
+
+        function setHero(url) {
+
+            if (url) {
+                heroImg.src = url;
+                heroImg.classList.remove("d-none");
+                heroEmpty.classList.add("d-none");
+            } else {
+                heroImg.src = "";
+                heroImg.classList.add("d-none");
+                heroEmpty.classList.remove("d-none");
+            }
+        }
+
+        function updatePhotoWidgetMode() {
+
+            const single = isSinglePhotoMode();
+
+            heroBox.classList.toggle("asset-photo-box-compact", single);
+            heroBox.classList.toggle(
+                "asset-photo-box-uploadable",
+                single && selectedFiles.length === 0
+            );
+
+            thumbStrip.parentElement.classList.toggle(
+                "asset-photo-gallery-compact",
+                single
+            );
+
+            if (addTile) {
+                addTile.style.display = single ? "none" : "";
+            }
+
+            if (heroDeleteBtn) {
+                heroDeleteBtn.classList.toggle(
+                    "d-none",
+                    !(single && selectedFiles.length > 0)
+                );
+            }
+
+            if (galleryHelp) {
+                galleryHelp.textContent = single ? LABEL_SINGLE_PHOTO_HELP : LABEL_GALLERY_HELP;
+            }
+
+            // Masuk ke mode 1-foto dengan file yang sudah terlanjur
+            // lebih dari 1 (pindah tab dari kategori lain) - buang
+            // sisanya, cuma sampul yang dipertahankan.
+            if (single && selectedFiles.length > 1) {
+                selectedFiles = selectedFiles.slice(0, 1);
+                syncInputFiles();
+                renderGallery();
+            }
+        }
+
+        window.updatePhotoWidgetMode = updatePhotoWidgetMode;
+
+        function renderGallery() {
+
+            previewUrls.forEach(function (url) {
+                URL.revokeObjectURL(url);
+            });
+
+            previewUrls = selectedFiles.map(function (file) {
+                return URL.createObjectURL(file);
+            });
+
+            thumbStrip
+                .querySelectorAll(".asset-photo-thumb:not(.asset-photo-thumb-add)")
+                .forEach(function (el) {
+                    el.remove();
+                });
+
+            const single = isSinglePhotoMode();
+
+            if (!single) {
+
+                selectedFiles.forEach(function (file, index) {
+
+                    const url = previewUrls[index];
+
+                    const div = document.createElement("div");
+                    div.className = "asset-photo-thumb" + (index === 0 ? " is-cover" : "");
+
+                    div.innerHTML =
+                        '<img src="' + url + '" class="asset-photo-thumb-img asset-photo-clickable" ' +
+                        'data-bs-toggle="modal" data-bs-target="#addPhotoModal" alt="">' +
+                        '<span class="asset-photo-thumb-cover-badge"><i class="bi bi-star-fill"></i></span>' +
+                        '<div class="asset-photo-thumb-actions">' +
+                        '<button type="button" class="btn-thumb-cover" title="' + LABEL_SET_COVER + '"><i class="bi bi-star"></i></button>' +
+                        '<button type="button" class="btn-thumb-delete" title="' + LABEL_DELETE + '"><i class="bi bi-trash"></i></button>' +
+                        "</div>";
+
+                    div.querySelector(".btn-thumb-cover").addEventListener("click", function () {
+                        const moved = selectedFiles.splice(index, 1)[0];
+                        selectedFiles.unshift(moved);
+                        syncInputFiles();
+                        renderGallery();
+                    });
+
+                    div.querySelector(".btn-thumb-delete").addEventListener("click", function () {
+                        selectedFiles.splice(index, 1);
+                        syncInputFiles();
+                        renderGallery();
+                    });
+
+                    div.querySelector(".asset-photo-thumb-img").addEventListener("click", function () {
+                        modalImage.src = url;
+                    });
+
+                    thumbStrip.insertBefore(div, addTile);
+                });
+            }
+
+            setHero(previewUrls[0] || null);
+            updatePhotoWidgetMode();
+        }
+
+        if (heroImg) {
+            heroImg.addEventListener("click", function () {
+                modalImage.src = heroImg.getAttribute("src");
+            });
+        }
+
+        heroBox.addEventListener("click", function (event) {
+
+            if (event.target.closest("#addPhotoHeroDelete")) {
+                return;
+            }
+
+            if (isSinglePhotoMode() && selectedFiles.length === 0) {
+                photoInput.click();
+            }
+        });
+
+        if (heroDeleteBtn) {
+            heroDeleteBtn.addEventListener("click", function (event) {
+                event.stopPropagation();
+                selectedFiles = [];
+                syncInputFiles();
+                renderGallery();
+            });
+        }
+
+        updatePhotoWidgetMode();
+
+        function handleIncomingFiles(fileList) {
+
+            const newFiles = Array.from(fileList || []);
+
+            for (const file of newFiles) {
+
+                if (!allowedTypes.includes(file.type)) {
+                    alert("{{ _('Photo format must be JPG, JPEG, PNG, or WEBP.') }}");
+                    syncInputFiles();
+                    return;
+                }
+
+                if (file.size > maxSize) {
+                    alert("{{ _('Maximum photo size is 5 MB.') }}");
+                    syncInputFiles();
+                    return;
+                }
+            }
+
+            selectedFiles = isSinglePhotoMode()
+                ? newFiles.slice(0, 1)
+                : selectedFiles.concat(newFiles);
+
+            syncInputFiles();
+            renderGallery();
+        }
+
+        photoInput.addEventListener("change", function () {
+            handleIncomingFiles(this.files);
+        });
+
+        const cameraBtn = document.getElementById("addPhotoCameraBtn");
+        const cameraInput = document.getElementById("addPhotoCameraInput");
+
+        if (cameraBtn && cameraInput) {
+
+            cameraBtn.addEventListener("click", function (event) {
+                event.stopPropagation();
+                cameraInput.click();
+            });
+
+            cameraInput.addEventListener("change", function () {
+                handleIncomingFiles(this.files);
+                cameraInput.value = "";
+            });
+        }
+
+    });
+</script>
+
+
+{% endblock %}

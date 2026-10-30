@@ -1,0 +1,1719 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ _('Edit Asset') }} - {{ asset.asset_tag }}
+{% endblock %}
+
+
+{% block content %}
+
+<style>
+    /* ============================================================
+   EDIT ASSET - FIELD ATK/PANTRY (lihat is_simple_stock)
+   ============================================================
+   Kolom kiri/kanan dilebarkan jaraknya (--bs-gutter-x) supaya input
+   box tidak berdempetan. Jarak vertikal antar baris (margin-bottom)
+   sudah ditangani seragam oleh .form-field-row di bawah - tidak
+   ditambah lagi di sini supaya tidak dobel dengan baris field biasa
+   (lihat acuan Asset Tag/Category). */
+
+    .simple-stock-row {
+        --bs-gutter-x: 2rem;
+    }
+
+    /* Location/Department dan PIC/Status dipasangkan 1 baris (col-6),
+       tapi untuk kategori yang cuma menampilkan salah satu dari
+       pasangan itu, JS menambah class ini supaya field yang tampil
+       melebar penuh (lihat applyFieldTemplate()). */
+    .form-field-row-solo {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Jarak antar baris field (mis. baris Asset Tag/Name ke baris
+       Category/Brand di bawahnya) - supaya tidak berdempetan begitu
+       field-nya wrap ke baris baru di layar sempit/kolom setengah.
+       --bs-gutter-y dimatikan supaya cuma margin-bottom di bawah ini
+       yang mengatur jarak vertikal - kalau tidak, field yang wrap di
+       DALAM satu .row.g-3 yang sama (mis. Category/Brand ke Stock/
+       Unit) dapat jarak dobel (gutter-y + margin-bottom), sedangkan
+       field yang berada di .row.g-3 terpisah (mis. Asset Tag/Name ke
+       Category/Brand) cuma dapat margin-bottom saja - bikin jaraknya
+       tidak rata/acuannya beda-beda. */
+    .row.g-3 {
+        --bs-gutter-y: 0;
+    }
+
+    .form-field-row {
+        margin-bottom: 1.1rem;
+    }
+
+    /* Paksa SEMUA label selalu di atas input-nya (bukan di samping) -
+       .form-field-row aslinya cuma pindah ke bawah kalau kolomnya
+       sempit (lihat style.css), jadi di kolom yang cukup lebar (mis.
+       layar besar) label & input malah sejajar sampingan, dan kalau
+       labelnya panjang (mis. "Phone/WhatsApp") teksnya meluber nabrak
+       kolom sebelah karena white-space:nowrap. Dengan dipaksa
+       flex-direction:column, perilaku ini jadi konsisten di semua
+       lebar layar, dan label panjang aman cuma turun ke baris kedua
+       (bukan meluber keluar). */
+    .form-field-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .form-field-row>.form-field-label {
+        flex: 0 0 auto;
+        white-space: normal;
+        margin-bottom: 0.4rem;
+    }
+
+    .form-field-row>.form-control,
+    .form-field-row>.form-select,
+    .form-field-row>.input-group,
+    .form-field-row>.btn {
+        flex: 0 0 auto;
+        min-width: 0;
+        width: 100%;
+    }
+
+    /* .asset-type-tab-content punya mb-3 bawaan - dimatikan supaya
+       tidak menambah jarak ekstra di antara baris field terakhir tiap
+       kategori (mis. Per Unit) dengan baris field bersama di bawahnya
+       (Location/Department/PIC/Status), di luar margin-bottom
+       .form-field-row di atas. */
+    .asset-type-tab-content {
+        margin-bottom: 0 !important;
+    }
+
+    /* ============================================================
+   EDIT ASSET
+   ============================================================ */
+
+    .edit-asset-page {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+
+    .edit-asset-card {
+        border: 0;
+
+        border-radius: 14px;
+
+        overflow: hidden;
+
+        box-shadow:
+            0 3px 14px rgba(0, 0, 0, 0.08);
+    }
+
+
+    /* ============================================================
+   BODY
+   ============================================================ */
+
+    .edit-asset-body {
+        padding: 25px;
+    }
+
+
+    /* ============================================================
+   SECTION
+   ============================================================ */
+
+    .form-section {
+        margin-bottom: 28px;
+    }
+
+
+    .form-section:last-child {
+        margin-bottom: 0;
+    }
+
+
+    .form-section-title {
+        font-size: 16px;
+
+        font-weight: 700;
+
+        padding-bottom: 10px;
+
+        margin-bottom: 18px;
+
+        border-bottom: 1px solid #eeeeee;
+    }
+
+
+    /* ============================================================
+   LABEL
+   ============================================================ */
+
+    .form-label {
+        font-size: 13px;
+
+        font-weight: 600;
+
+        color: #495057;
+    }
+
+
+    /* ============================================================
+   BUTTON
+   ============================================================ */
+
+    .edit-action-buttons {
+        padding-top: 20px;
+
+        border-top: 1px solid #eeeeee;
+
+        display: flex;
+
+        justify-content: flex-end;
+
+        gap: 10px;
+
+        flex-wrap: wrap;
+    }
+
+
+    /* ============================================================
+   ASSET TYPE TABS
+   ============================================================ */
+
+    .asset-type-tabs {
+        border-bottom: 2px solid var(--bs-primary);
+    }
+
+
+    .asset-type-tabs .nav-link {
+        font-size: 13px;
+
+        font-weight: 600;
+
+        color: var(--bs-secondary-color);
+
+        background: transparent;
+
+        border: 1px solid transparent;
+
+        border-top-left-radius: 6px;
+
+        border-top-right-radius: 6px;
+
+        margin-bottom: -2px;
+    }
+
+
+    .asset-type-tabs .nav-link.active {
+        color: var(--bs-primary);
+
+        background: var(--bs-body-bg);
+
+        border-color: var(--bs-primary) var(--bs-primary) var(--bs-body-bg);
+    }
+
+
+    /* ============================================================
+   MOBILE
+   ============================================================ */
+
+    @media (max-width: 767px) {
+
+        .edit-asset-body {
+            padding: 18px;
+        }
+
+
+    }
+</style>
+
+
+<div class="container-fluid edit-asset-page">
+
+
+    <!-- ========================================================
+         HEADER
+         ======================================================== -->
+
+    <div class="page-header-card">
+
+        <div class="page-header-row">
+
+            <div class="page-header-left">
+
+                <div class="page-header-icon">
+                    <i class="bi bi-pencil-square"></i>
+                </div>
+
+                <div>
+
+                    <h3 class="page-header-title">
+                        {{ _('Edit Asset') }}
+                    </h3>
+
+                    <p class="page-header-subtitle mb-0">
+                        {{ asset.asset_tag }} - {{ asset.asset_name }}
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div class="page-header-actions">
+
+                <a href="{{ url_for(
+                        'main.asset_detail',
+                        asset_id=asset.id
+                    ) }}" class="btn btn-outline-secondary">
+
+                    <i class="bi bi-arrow-left me-1"></i>
+
+                    {{ _('Back') }}
+
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="card edit-asset-card">
+
+
+        <!-- ====================================================
+             FORM
+             ==================================================== -->
+
+        <div class="edit-asset-body">
+
+
+            <form method="POST" enctype="multipart/form-data" style="--form-field-label-width: 100px;">
+
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                {% set current_category = categories|selectattr('name', 'equalto', asset.category)|first %}
+                {% set current_template = current_category.field_template if current_category else 'pc_laptop' %}
+
+                {# is_simple_stock: ATK/Pantry pakai galeri foto single-
+                   photo + layout 2 kolom (lebih sedikit field) -
+                   berbeda dari show_type_tabs di bawah, murni soal
+                   tata letak form, bukan soal tab kategori. #}
+                {% set is_simple_stock = current_template in ('atk', 'pantry') %}
+
+                {# Asset yang sedang diedit sudah pasti 1 kategori -
+                   tab switcher ke kategori lain tidak relevan sama
+                   sekali saat edit (edit selalu spesialisasi ke
+                   kategori asset itu sendiri), jadi selalu disembunyikan
+                   untuk ke-14 field_template, bukan cuma ATK/Pantry. #}
+                {% set show_type_tabs = false %}
+
+                <div class="row g-4">
+
+                <div class="col-lg-4">
+
+                <!-- =================================================
+                     FOTO
+                     ================================================= -->
+
+                <div class="form-section">
+
+                    {% set single_photo_mode = is_simple_stock %}
+                    {% include "asset/_photo_gallery.html" %}
+
+                </div>
+
+                </div>
+
+                <div class="col-lg-8">
+
+                <!-- =================================================
+                     INFORMASI DASAR
+                     ================================================= -->
+
+                <div class="form-section">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-info-circle me-2"></i>
+
+                        {{ _('Asset Information') }}
+
+                    </div>
+
+
+                    <!-- ASSET TYPE TABS -->
+
+                    {% set allowed_tpl = allowed_category_templates %}
+
+                    {% if show_type_tabs %}
+
+                    <ul class="nav nav-tabs asset-type-tabs mb-3" role="tablist">
+
+                        {% if not allowed_tpl or 'pc_laptop' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'pc_laptop' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-pc_laptop" data-template="pc_laptop"
+                                type="button" role="tab">
+                                <i class="bi bi-laptop me-1"></i>{{ _('PC / Laptop') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'ponsel' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'ponsel' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-ponsel" data-template="ponsel"
+                                type="button" role="tab">
+                                <i class="bi bi-phone me-1"></i>{{ _('Phone') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'server' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'server' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-server" data-template="server"
+                                type="button" role="tab">
+                                <i class="bi bi-hdd-network me-1"></i>{{ _('Server & Network') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'non_pc' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'non_pc' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-non_pc" data-template="non_pc"
+                                type="button" role="tab">
+                                <i class="bi bi-display me-1"></i>{{ _('Other Electronics') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'elektronik_interior' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'elektronik_interior' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-elektronik_interior" data-template="elektronik_interior"
+                                type="button" role="tab">
+                                <i class="bi bi-house me-1"></i>{{ _('Interior Electronics') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'elektronik_exterior' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'elektronik_exterior' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-elektronik_exterior" data-template="elektronik_exterior"
+                                type="button" role="tab">
+                                <i class="bi bi-lightning-charge me-1"></i>{{ _('Exterior Electronics') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'kendaraan' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'kendaraan' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-kendaraan" data-template="kendaraan"
+                                type="button" role="tab">
+                                <i class="bi bi-car-front me-1"></i>{{ _('Vehicle') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'furniture' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'furniture' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-furniture" data-template="furniture"
+                                type="button" role="tab">
+                                <i class="bi bi-box2 me-1"></i>{{ _('Furniture') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'tools_mekanik' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'tools_mekanik' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-tools_mekanik" data-template="tools_mekanik"
+                                type="button" role="tab">
+                                <i class="bi bi-tools me-1"></i>{{ _('Mechanical Tools') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'atk' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'atk' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-atk" data-template="atk"
+                                type="button" role="tab">
+                                <i class="bi bi-pencil me-1"></i>{{ _('ATK') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'pantry' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'pantry' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-pantry" data-template="pantry"
+                                type="button" role="tab">
+                                <i class="bi bi-cup-hot me-1"></i>{{ _('Pantry') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'tools_pantry' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'tools_pantry' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-tools_pantry" data-template="tools_pantry"
+                                type="button" role="tab">
+                                <i class="bi bi-bucket me-1"></i>{{ _('Pantry Tools') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'showcase' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'showcase' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-showcase" data-template="showcase"
+                                type="button" role="tab">
+                                <i class="bi bi-shop-window me-1"></i>{{ _('Showcase') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                        {% if not allowed_tpl or 'gudang_event' in allowed_tpl %}
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link {{ 'active' if current_template == 'gudang_event' }}"
+                                data-bs-toggle="tab" data-bs-target="#type-gudang_event" data-template="gudang_event"
+                                type="button" role="tab">
+                                <i class="bi bi-boxes me-1"></i>{{ _('Event Stock') }}
+                            </button>
+                        </li>
+                        {% endif %}
+
+                    </ul>
+
+                    {% endif %}
+
+
+                    <div class="row g-3{{ ' simple-stock-row' if is_simple_stock }}">
+
+
+                        <!-- ASSET TAG -->
+
+                        <div class="{{ 'col-lg-6' if is_simple_stock else 'col-lg-4' }} col-6 form-field-row">
+
+
+                            <label for="asset_tag" class="form-label form-field-label">
+                                {{ _('Asset Tag') }}
+                            </label>
+
+
+                            <input type="text" class="form-control" id="asset_tag" name="asset_tag"
+                                value="{{ asset.asset_tag or '' }}" required>
+
+
+                        </div>
+
+
+
+                        <!-- ASSET NAME -->
+
+                        <div class="{{ 'col-lg-6' if is_simple_stock else 'col-lg-8' }} col-6 form-field-row">
+
+
+                            <label for="asset_name" class="form-label form-field-label">
+                                {{ _('Asset Name') }}
+                            </label>
+
+
+                            <input type="text" class="form-control" id="asset_name" name="asset_name"
+                                value="{{ asset.asset_name or '' }}" required>
+
+
+                        </div>
+
+
+                    </div>
+
+
+                    <div class="tab-content asset-type-tab-content mb-3">
+
+
+                        <!-- PC / LAPTOP -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'pc_laptop' }}"
+                            id="type-pc_laptop" data-template-pane="pc_laptop">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "pc_laptop" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'pc_laptop' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        value="{{ asset.model or '' if current_template == 'pc_laptop' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Serial Number') }}</label>
+                                    <input type="text" class="form-control" name="serial_number"
+                                        value="{{ asset.serial_number or '' if current_template == 'pc_laptop' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Phone/WhatsApp') }}</label>
+                                    <input type="text" class="form-control" name="phone_number"
+                                        value="{{ asset.phone_number or '' if current_template == 'pc_laptop' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Office Email') }}</label>
+                                    <input type="email" class="form-control" name="office_email"
+                                        value="{{ asset.office_email or '' if current_template == 'pc_laptop' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Personal Email') }}</label>
+                                    <input type="email" class="form-control" name="personal_email"
+                                        value="{{ asset.personal_email or '' if current_template == 'pc_laptop' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- PHONE -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'ponsel' }}"
+                            id="type-ponsel" data-template-pane="ponsel">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "ponsel" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'ponsel' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        value="{{ asset.model or '' if current_template == 'ponsel' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Serial Number') }}</label>
+                                    <input type="text" class="form-control" name="serial_number"
+                                        value="{{ asset.serial_number or '' if current_template == 'ponsel' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Phone/WhatsApp') }}</label>
+                                    <input type="text" class="form-control" name="phone_number"
+                                        value="{{ asset.phone_number or '' if current_template == 'ponsel' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Office Email') }}</label>
+                                    <input type="email" class="form-control" name="office_email"
+                                        value="{{ asset.office_email or '' if current_template == 'ponsel' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Personal Email') }}</label>
+                                    <input type="email" class="form-control" name="personal_email"
+                                        value="{{ asset.personal_email or '' if current_template == 'ponsel' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- SERVER & NETWORK -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'server' }}"
+                            id="type-server" data-template-pane="server">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "server" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'server' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        value="{{ asset.model or '' if current_template == 'server' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Serial Number') }}</label>
+                                    <input type="text" class="form-control" name="serial_number"
+                                        value="{{ asset.serial_number or '' if current_template == 'server' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- OTHER ELECTRONICS -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'non_pc' }}"
+                            id="type-non_pc" data-template-pane="non_pc">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "non_pc" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'non_pc' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        value="{{ asset.model or '' if current_template == 'non_pc' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Serial Number') }}</label>
+                                    <input type="text" class="form-control" name="serial_number"
+                                        value="{{ asset.serial_number or '' if current_template == 'non_pc' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- INTERIOR ELECTRONICS -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'elektronik_interior' }}"
+                            id="type-elektronik_interior" data-template-pane="elektronik_interior">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "elektronik_interior" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'elektronik_interior' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Specification / Capacity') }}</label>
+                                    <input type="text" class="form-control" name="specification"
+                                        value="{{ asset.specification or '' if current_template == 'elektronik_interior' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- EXTERIOR ELECTRONICS -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'elektronik_exterior' }}"
+                            id="type-elektronik_exterior" data-template-pane="elektronik_exterior">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "elektronik_exterior" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'elektronik_exterior' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Specification / Capacity') }}</label>
+                                    <input type="text" class="form-control" name="specification"
+                                        value="{{ asset.specification or '' if current_template == 'elektronik_exterior' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- VEHICLE -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'kendaraan' }}"
+                            id="type-kendaraan" data-template-pane="kendaraan">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "kendaraan" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'kendaraan' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        value="{{ asset.model or '' if current_template == 'kendaraan' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('License Plate Number') }}</label>
+                                    <input type="text" class="form-control" name="plat_nomor"
+                                        value="{{ asset.plat_nomor or '' if current_template == 'kendaraan' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Tax (STNK) Due Date') }}</label>
+                                    <input type="date" class="form-control" name="masa_pajak"
+                                        value="{% if current_template == 'kendaraan' and asset.masa_pajak %}{{ asset.masa_pajak.strftime('%Y-%m-%d') }}{% endif %}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Insurance') }}</label>
+                                    <input type="text" class="form-control" name="asuransi"
+                                        value="{{ asset.asuransi or '' if current_template == 'kendaraan' else '' }}"
+                                        placeholder="{{ _('Example: Astra Insurance') }}" maxlength="100">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Policy Number') }}</label>
+                                    <input type="text" class="form-control" name="nomor_polis"
+                                        value="{{ asset.nomor_polis or '' if current_template == 'kendaraan' else '' }}"
+                                        placeholder="{{ _('Example: POL-123456') }}" maxlength="50">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Insurance Due Date') }}</label>
+                                    <input type="date" class="form-control" name="masa_asuransi"
+                                        value="{% if current_template == 'kendaraan' and asset.masa_asuransi %}{{ asset.masa_asuransi.strftime('%Y-%m-%d') }}{% endif %}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('KIR Due Date') }}</label>
+                                    <input type="date" class="form-control" name="masa_kir"
+                                        value="{% if current_template == 'kendaraan' and asset.masa_kir %}{{ asset.masa_kir.strftime('%Y-%m-%d') }}{% endif %}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Color') }}</label>
+                                    <input type="text" class="form-control" name="warna"
+                                        value="{{ asset.warna or '' if current_template == 'kendaraan' else '' }}" maxlength="30">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Year Made') }}</label>
+                                    <input type="number" class="form-control" name="tahun_buat" min="1950" max="2100"
+                                        value="{{ asset.tahun_buat or '' if current_template == 'kendaraan' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- FURNITURE -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'furniture' }}"
+                            id="type-furniture" data-template-pane="furniture">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "furniture" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'furniture' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- MECHANICAL TOOLS -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'tools_mekanik' }}"
+                            id="type-tools_mekanik" data-template-pane="tools_mekanik">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "tools_mekanik" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'tools_mekanik' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Model') }}</label>
+                                    <input type="text" class="form-control" name="model"
+                                        value="{{ asset.model or '' if current_template == 'tools_mekanik' else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- ATK -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'atk' }}"
+                            id="type-atk" data-template-pane="atk">
+
+                            <div class="row g-3 simple-stock-row">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "atk" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'atk' else '' }}">
+                                </div>
+
+                            </div>
+
+                            <div class="row g-3 simple-stock-row">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01"
+                                        value="{{ asset.stock_quantity | fmt_qty if current_template == 'atk' and asset.stock_quantity is not none else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        value="{{ asset.unit or '' if current_template == 'atk' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}"
+                                        value="{{ asset.pcs_per_unit | fmt_qty if current_template == 'atk' and asset.pcs_per_unit is not none else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- PANTRY -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'pantry' }}"
+                            id="type-pantry" data-template-pane="pantry">
+
+                            <div class="row g-3 simple-stock-row">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "pantry" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'pantry' else '' }}">
+                                </div>
+
+                            </div>
+
+                            <div class="row g-3 simple-stock-row">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01"
+                                        value="{{ asset.stock_quantity | fmt_qty if current_template == 'pantry' and asset.stock_quantity is not none else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        value="{{ asset.unit or '' if current_template == 'pantry' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}"
+                                        value="{{ asset.pcs_per_unit | fmt_qty if current_template == 'pantry' and asset.pcs_per_unit is not none else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- PANTRY TOOLS -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'tools_pantry' }}"
+                            id="type-tools_pantry" data-template-pane="tools_pantry">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "tools_pantry" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'tools_pantry' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01"
+                                        value="{{ asset.stock_quantity | fmt_qty if current_template == 'tools_pantry' and asset.stock_quantity is not none else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        value="{{ asset.unit or '' if current_template == 'tools_pantry' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}"
+                                        value="{{ asset.pcs_per_unit | fmt_qty if current_template == 'tools_pantry' and asset.pcs_per_unit is not none else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- SHOWCASE -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'showcase' }}"
+                            id="type-showcase" data-template-pane="showcase">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "showcase" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'showcase' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01"
+                                        value="{{ asset.stock_quantity | fmt_qty if current_template == 'showcase' and asset.stock_quantity is not none else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        value="{{ asset.unit or '' if current_template == 'showcase' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}"
+                                        value="{{ asset.pcs_per_unit | fmt_qty if current_template == 'showcase' and asset.pcs_per_unit is not none else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Selling Price') }}</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">Rp</span>
+                                        <input type="number" class="form-control" name="selling_price" min="0" step="0.01"
+                                            value="{{ asset.selling_price if current_template == 'showcase' and asset.selling_price is not none else '' }}">
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- EVENT WAREHOUSE STOCK -->
+
+                        <div class="tab-pane fade {{ 'show active' if current_template == 'gudang_event' }}"
+                            id="type-gudang_event" data-template-pane="gudang_event">
+
+                            <div class="row g-3">
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Category') }}</label>
+                                    <select class="form-select category-input" name="category">
+                                        <option value="">{{ _('Select Category') }}</option>
+                                        {% for category in categories if category.field_template == "gudang_event" %}
+                                        <option value="{{ category.name }}" {{ "selected" if asset.category ==
+                                            category.name }}>{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Brand') }}</label>
+                                    <input type="text" class="form-control" name="brand"
+                                        value="{{ asset.brand or '' if current_template == 'gudang_event' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Stock') }}</label>
+                                    <input type="number" class="form-control" name="stock_quantity" min="0" step="0.01"
+                                        value="{{ asset.stock_quantity | fmt_qty if current_template == 'gudang_event' and asset.stock_quantity is not none else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">{{ _('Unit') }}</label>
+                                    <input type="text" class="form-control" name="unit"
+                                        value="{{ asset.unit or '' if current_template == 'gudang_event' else '' }}">
+                                </div>
+
+                                <div class="col-6 form-field-row">
+                                    <label class="form-label form-field-label">
+                                        {{ _('Per Unit') }}
+                                        <i class="bi bi-info-circle text-muted" title="{{ _('e.g. if Unit = Box and this is 12, then 1 Box = 12 Pcs. Leave blank if Unit is already Pcs.') }}"></i>
+                                    </label>
+                                    <input type="number" class="form-control" name="pcs_per_unit" min="1" step="1"
+                                        placeholder="{{ _('e.g. 12') }}"
+                                        value="{{ asset.pcs_per_unit | fmt_qty if current_template == 'gudang_event' and asset.pcs_per_unit is not none else '' }}">
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+
+                    <div class="row g-3{{ ' simple-stock-row' if is_simple_stock }}">
+
+
+                        <!-- LOCATION -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,furniture,tools_mekanik,tools_pantry,showcase,gudang_event">
+
+
+                            <label for="location" class="form-label form-field-label">
+                                {{ _('Location') }}
+                            </label>
+
+
+                            <select class="form-select" id="location" name="location">
+
+
+                                <option value="">
+                                    {{ _('Select Location') }}
+                                </option>
+
+
+                                {% for location in locations %}
+
+
+                                <option value="{{ location.name }}" {% if asset.location == location.name %} selected
+                                    {% endif %}>
+
+                                    {{ location.name }}
+
+                                </option>
+
+
+                                {% endfor %}
+
+
+                            </select>
+
+
+                        </div>
+
+
+
+                        <!-- DEPARTMENT -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,furniture,tools_mekanik,pantry,tools_pantry,showcase,gudang_event">
+
+
+                            <label for="department" class="form-label form-field-label">
+                                {{ _('Department') }}
+                            </label>
+
+
+                            <select class="form-select" id="department" name="department">
+
+
+                                <option value="">
+                                    {{ _('Select Department') }}
+                                </option>
+
+
+                                {% for department in departments %}
+
+
+                                <option value="{{ department.name }}" {% if asset.department == department.name %}
+                                    selected {% endif %}>
+
+                                    {{ department.name }}
+
+                                </option>
+
+
+                                {% endfor %}
+
+
+                            </select>
+
+
+                        </div>
+
+
+
+                        <!-- PIC -->
+
+                        <div class="col-6 form-field-row">
+
+
+                            <label for="pic" class="form-label form-field-label">
+                                {{ _('PIC') }}
+                            </label>
+
+
+                            <input type="text" class="form-control" id="pic" name="pic" value="{{ asset.pic or '' }}">
+
+
+                        </div>
+
+
+
+                        <!-- STATUS -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,furniture,tools_mekanik,atk,pantry">
+
+
+                            <label for="status" class="form-label form-field-label">
+                                {{ _('Status') }}
+                            </label>
+
+
+                            <select class="form-select" id="status" name="status">
+
+
+                                <option value="">
+                                    {{ _('Select Status') }}
+                                </option>
+
+
+                                <option value="Active" {% if asset.status == "Active" %} selected {% endif %}>
+                                    {{ _('Active') }}
+                                </option>
+
+
+                                <option value="Maintenance" {% if asset.status == "Maintenance" %} selected {% endif %}>
+                                    {{ _('Maintenance') }}
+                                </option>
+
+
+                                <option value="Inactive" {% if asset.status == "Inactive" %} selected {% endif %}>
+                                    {{ _('Inactive') }}
+                                </option>
+
+
+                                <option value="Lost" {% if asset.status == "Lost" %} selected {% endif %}>
+                                    {{ _('Lost') }}
+                                </option>
+
+
+                                <option value="Retired" {% if asset.status == "Retired" %} selected {% endif %}>
+                                    {{ _('Retired') }}
+                                </option>
+
+
+                            </select>
+
+
+                        </div>
+
+
+                    </div>
+
+
+                </div>
+
+
+
+                <!-- =================================================
+                     PEMBELIAN
+                     ================================================= -->
+
+                <div class="form-section" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,tools_mekanik">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-cart me-2"></i>
+
+                        {{ _('Purchase Information') }}
+
+                    </div>
+
+
+                    <div class="row g-3">
+
+
+                        <!-- PURCHASE DATE -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,tools_mekanik">
+
+
+                            <label for="purchase_date" class="form-label form-field-label">
+                                {{ _('Purchase Date') }}
+                            </label>
+
+
+                            <input type="date" class="form-control" id="purchase_date" name="purchase_date"
+                                value="{% if asset.purchase_date %}{{ asset.purchase_date.strftime('%Y-%m-%d') }}{% endif %}">
+
+
+                        </div>
+
+
+
+                        <!-- PURCHASE PRICE -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,tools_mekanik">
+
+
+                            <label for="purchase_price" class="form-label form-field-label">
+                                {{ _('Purchase Price') }}
+                            </label>
+
+
+                            <input type="text" class="form-control" id="purchase_price" name="purchase_price"
+                                value="{{ asset.purchase_price or '' }}" inputmode="numeric">
+
+
+                        </div>
+
+
+
+                        <!-- VENDOR -->
+
+                        <div class="col-6 form-field-row" data-tpl-fields="pc_laptop,ponsel,server,non_pc,elektronik_interior,elektronik_exterior,kendaraan,tools_mekanik">
+
+
+                            <label for="vendor" class="form-label form-field-label">
+                                {{ _('Vendor') }}
+                            </label>
+
+
+                            <select class="form-select" id="vendor" name="vendor">
+
+
+                                <option value="">
+                                    {{ _('Select Vendor') }}
+                                </option>
+
+
+                                {% for vendor in vendors %}
+
+
+                                <option value="{{ vendor.name }}" {% if asset.vendor == vendor.name %} selected
+                                    {% endif %}>
+
+                                    {{ vendor.name }}
+
+                                </option>
+
+
+                                {% endfor %}
+
+
+                            </select>
+
+
+                        </div>
+
+
+                    </div>
+
+
+                </div>
+
+                {% if is_simple_stock %}
+
+                <!-- =================================================
+                     DESCRIPTION (digabung ke panel Informasi Asset -
+                     khusus ATK, supaya tidak ada tab menu yang tidak
+                     perlu dan deskripsi tidak perlu seksi terpisah
+                     di bawah)
+                     ================================================= -->
+
+                <div class="form-section">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-card-text me-2"></i>
+
+                        {{ _('Description') }}
+
+                    </div>
+
+
+                    <textarea class="form-control" id="description" name="description" rows="3"
+                        placeholder="{{ _('Enter the asset description...') }}">{{ asset.description or '' }}</textarea>
+
+
+                </div>
+
+                {% endif %}
+
+                </div>
+
+                </div>
+
+                {% if not is_simple_stock %}
+
+                <!-- =================================================
+                     DESCRIPTION
+                     ================================================= -->
+
+                <div class="form-section">
+
+
+                    <div class="form-section-title">
+
+                        <i class="bi bi-card-text me-2"></i>
+
+                        {{ _('Description') }}
+
+                    </div>
+
+
+                    <textarea class="form-control" id="description" name="description" rows="5"
+                        placeholder="{{ _('Enter the asset description...') }}">{{ asset.description or '' }}</textarea>
+
+
+                </div>
+
+                {% endif %}
+
+
+
+                <!-- =================================================
+                     BUTTON
+                     ================================================= -->
+
+                <div class="edit-action-buttons">
+
+
+                    <a href="{{ url_for(
+                            'main.asset_detail',
+                            asset_id=asset.id
+                        ) }}" class="btn btn-outline-secondary">
+
+                        <i class="bi bi-x-lg me-1"></i>
+
+                        {{ _('Cancel') }}
+
+                    </a>
+
+
+                    <button type="submit" class="btn btn-primary">
+
+                        <i class="bi bi-check-lg me-1"></i>
+
+                        {{ _('Save Changes') }}
+
+                    </button>
+
+
+                </div>
+
+
+            </form>
+
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+<script>
+    /* ============================================================
+   DYNAMIC FIELDS BY CATEGORY (FIELD TEMPLATE)
+   ============================================================ */
+
+    function getActiveTypeTemplate() {
+
+        const activeTabButton = document.querySelector(
+            ".asset-type-tabs .nav-link.active"
+        );
+
+        return (
+            (activeTabButton && activeTabButton.dataset.template) ||
+            "{{ current_template }}"
+        );
+    }
+
+
+    function applyFieldTemplate(clearHidden) {
+
+        const template = getActiveTypeTemplate();
+
+        document.querySelectorAll("[data-tpl-fields]").forEach(
+            function (el) {
+
+                const allowed =
+                    el.dataset.tplFields.split(",");
+
+                const visible =
+                    allowed.indexOf(template) !== -1;
+
+                el.style.display = visible ? "" : "none";
+
+                if (!visible && clearHidden) {
+
+                    el.querySelectorAll(
+                        "input, select, textarea"
+                    ).forEach(function (field) {
+                        field.value = "";
+                    });
+
+                }
+            }
+        );
+
+        // Location/Department dan PIC/Status masing-masing dipasangkan
+        // 1 baris (col-6), tapi beberapa kategori cuma menampilkan
+        // salah satu dari sepasang itu (mis. Pantry: Department tanpa
+        // Location; Tools Pantry/Showcase/Event Stock: PIC tanpa
+        // Status) - supaya tidak ada ruang kosong menggantung, field
+        // yang tampil sendirian dilebarkan penuh.
+        [["location", "department"], ["pic", "status"]].forEach(
+            function (pair) {
+
+                const firstEl = document.getElementById(pair[0]);
+                const secondEl = document.getElementById(pair[1]);
+
+                if (!firstEl || !secondEl) { return; }
+
+                const firstCol = firstEl.closest(".form-field-row");
+                const secondCol = secondEl.closest(".form-field-row");
+
+                const firstVisible = firstCol.style.display !== "none";
+                const secondVisible = secondCol.style.display !== "none";
+
+                firstCol.classList.toggle(
+                    "form-field-row-solo", firstVisible && !secondVisible
+                );
+                secondCol.classList.toggle(
+                    "form-field-row-solo", secondVisible && !firstVisible
+                );
+
+            }
+        );
+    }
+
+
+    function syncTypeTabPanes() {
+
+        const template = getActiveTypeTemplate();
+
+        document.querySelectorAll("[data-template-pane]").forEach(
+            function (pane) {
+
+                const isActive =
+                    pane.dataset.templatePane === template;
+
+                pane.querySelectorAll(
+                    "input, select, textarea"
+                ).forEach(function (field) {
+                    field.disabled = !isActive;
+                });
+
+            }
+        );
+    }
+
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        function () {
+
+            syncTypeTabPanes();
+            applyFieldTemplate(false);
+
+            document.querySelectorAll(
+                ".asset-type-tabs button[data-bs-toggle='tab']"
+            ).forEach(function (tabButton) {
+
+                tabButton.addEventListener(
+                    "shown.bs.tab",
+                    function () {
+                        syncTypeTabPanes();
+                        applyFieldTemplate(true);
+                    }
+                );
+
+            });
+
+        }
+    );
+</script>
+
+
+{% endblock %}
